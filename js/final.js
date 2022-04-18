@@ -32,6 +32,79 @@ const fragImgDisplay = `#version 300 es
 	}
 `;
 
+
+// NORMAL MAP GENERATION USING SOBEL MASKING
+// This is the major part of the project, attempting to tweak the normal maps
+const fragSobelNormalGeneration = `#version 300 es
+	precision highp float; 
+    precision highp sampler2D;
+    
+    in vec2 v_Coord;
+    uniform sampler2D u_Image;
+    uniform vec2 u_Texel; // added by hk
+    uniform float u_Scale;
+	uniform float u_NormalHeight;
+	uniform bool u_SwapDirection;
+
+    out vec4 cg_FragColor;
+        
+    void main () {
+        float x = v_coord.x;
+        float y = v_coord.y;
+        float dx = u_texel.x;
+        float dy = u_texel.y;    
+  
+        vec2 g = vec2(0.0);
+
+        g.x = (          
+			-1.0 * texture(u_image, vec2(x-dx, y-dy)).r +
+			-2.0 * texture(u_image, vec2(x-dx, y)).r +
+			-1.0 * texture(u_image, vec2(x-dx, y+dy)).r +
+			+1.0 * texture(u_image, vec2(x+dx, y-dy)).r +
+			+2.0 * texture(u_image, vec2(x+dx, y)).r +
+			+1.0 * texture(u_image, vec2(x+dx, y+dy)).r		
+		); // [-4, 4] because texture returns [0, 1]		   
+
+		g.y = (		
+			-1.0 * texture(u_image, vec2(x-dx, y-dy)).r +
+			-2.0 * texture(u_image, vec2(x,    y-dy)).r +
+			-1.0 * texture(u_image, vec2(x+dx, y-dy)).r +
+			+1.0 * texture(u_image, vec2(x-dx, y+dy)).r +
+			+2.0 * texture(u_image, vec2(x,    y+dy)).r +
+			+1.0 * texture(u_image, vec2(x+dx, y+dy)).r		
+		); // [-4, 4] because texture returns [0, 1]		   
+		
+		g.x /= 4.0; // [-1, 1]
+	    g.y /= 4.0; // [-1, 1]	
+	    
+		float mag = g.x * g.x + g.y * g.y; // [0, 2]
+	    mag /= 2.0; // [0, 1]	   	   
+
+        // if zero gradient, make it a vertical tangent vector
+        if (g.x == 0.0 && g.y == 0.0) g = vec2(1.0, 0.0); 
+
+		if (u_swap_direction) {
+			g.x = -g.x;
+			g.y = -g.y;
+		}
+		
+	    g = normalize(g); // [-1, 1]
+
+	    g = (g + 1.0) / 2.0; // [0, 1]
+
+        /////////////////////////////////////////
+        // enhance gradient magnitude
+	    mag = tanh(u_scale * mag);
+	    /////////////////////////////////////////
+
+	    //cg_FragColor = vec4(mag, mag, mag, 1.0);
+	
+		cg_FragColor = mix(vec4(g, u_normal_height, 1.0), vec4(0.5, 0.5, 1.0, 1.0), 1.0 - mag);	
+    }       
+`;
+
+
+
 // Image urls
 let imgUrls = [
 	"../img/earth.jpg",
@@ -74,8 +147,13 @@ function main() {
 	diffuseProg.bind(glDiffuse);
 	normalProg.bind(glNormal);
 
-	let update = function() {
-		if (areImagesLoaded(imgs)) {
+	sobelMaskNormalFbo = create_double_fbo(glNormal, 512, 512, glNormal.RGBA16F, glNormal.RGBA, glNormal.HALF_FLOAT, glNormal.LINEAR, false);
+	preGaussFbo = create_double_fbo(glNormal, 512, 512, glNormal.RGBA16F, glNormal.RGBA, glNormal.HALF_FLOAT, glNormal.LINEAR, false);
+	postGaussFbo = create_double_fbo(glNormal, 512, 512, glNormal.RGBA16F, glNormal.RGBA, glNormal.HALF_FLOAT, glNormal.LINEAR, false);
+	
+	let update = function() {sobelMaskNormalFbo = create_double_fbo(glNormal, 512, 512, glNormal.RGBA16F, glNormal.RGBA, glNormal.HALF_FLOAT, glNormal.LINEAR, false);
+							 
+	if (areImagesLoaded(imgs)) {
 			cancelAnimationFrame(animID);
 			glDiffuse.uniform1i(diffuseProg.u_Image, 0);
 			glNormal.uniform1i(diffuseProg.u_Image, 0);
@@ -153,6 +231,42 @@ function createVaoImage(gl) {
 	return vaoImage;
 }
 
+
+/***** BASED ON HW3 *****/
+// Sobel normal mask drawing
+function sobelNormalMap(gl, ori, dst, scale, normalHeight, swap) {
+    let program = prog_sobel;
+    program.bind();
+
+    gl.uniform1i(program.uniforms.u_Image, src.read.attach(1));
+    gl.uniform2f(program.uniforms.u_Texel, src.texel_x, src.texel_y);
+    gl.uniform1f(program.uniforms.u_Scale, scale);
+	gl.uniform1f(program.uniforms.u_NormalHeight, normalHeight);
+	gl.uniform1f(program.uniforms.u_SwapDirection, swap);
+
+    gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+
+    let write = dst.write.fbo;
+   
+    dst.swap();
+}
+
+/***** BASED ON HW3 *****/
+// Sobel normal mask drawing
+function renderImg(gl, prog, fbo) {
+    let program = prog;
+    program.bind(gl);
+
+	gl.bindFrameBuffer(gl.FRAMEBUFFER, fbo);
+
+    gl.uniform1i(program.uniforms.u_Image, );
+    gl.uniform2f(program.uniforms.u_Texel, src.texel_x, src.texel_y);
+	
+    gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+
+	gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+}
+
 /***** DATA STRUCTURE FROM CLASS *****/
 class GLProgram {
     constructor (vertex_shader, frag_shader, gl) {
@@ -192,3 +306,132 @@ function cg_init_shaders(gl, vshader, fshader) {
   return program;
 }
 
+function cg_init_framebuffers(gl, img) {
+    console.log("Image width: " + img.width);
+    console.log("Image height: " + img.height);
+
+    gl.getExtension('EXT_color_buffer_float');
+    // enables float framebuffer color attachment
+
+    out_depth = create_double_fbo(canvas.width, canvas.height, gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT, gl.LINEAR, true);
+    toon = create_double_fbo(canvas.width, canvas.height, gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT, gl.LINEAR, false);
+    outline = create_double_fbo(canvas.width, canvas.height, gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT, gl.LINEAR, false);
+    out = create_double_fbo(canvas.width, canvas.height, gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT, gl.LINEAR, false);
+    gradient = create_double_fbo(canvas.width, canvas.height, gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT, gl.LINEAR, false);
+    mag = create_double_fbo(canvas.width, canvas.height, gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT, gl.LINEAR, false);
+    canny = create_double_fbo(canvas.width, canvas.height, gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT, gl.LINEAR, false);
+}
+
+/***** FBOS FROM CLASS *****/
+// When attaching a texture to a framebuffer, all rendering commands will 
+// write to the texture as if it was a normal color/depth or stencil buffer.
+// The advantage of using textures is that the result of all rendering operations
+// will be stored as a texture image that we can then easily used in shaders
+function create_fbo (gl, w, h, internalFormat, format, type, param, depth) {
+
+    //gl.activeTexture(gl.TEXTURE0);
+    gl.activeTexture(gl.TEXTURE8); 
+    // use high number to avoid confusion with ordinary texture images
+
+    let texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, param);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, param);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.MIRRORED_REPEAT);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.MIRRORED_REPEAT);
+    // create texture image of resolution (w x h)
+    // note that here we pass null as texture source data (no texture image source)
+    // For this texture, we're only allocating memory and not actually filling it.
+    // Filling texture will happen as soon as we render to the framebuffer.    
+    gl.texImage2D(gl.TEXTURE_2D, 0, internalFormat, w, h, 0, format, type, null);
+
+    let fbo = gl.createFramebuffer();
+    // make created fbo our main framebuffer
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+    // attach texture to framebuffer so from now on, everything will be 
+    // drawn on this texture image    
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
+    
+	// create a depth renderbuffer
+	let depth_buffer = gl.createRenderbuffer();
+	gl.bindRenderbuffer(gl.RENDERBUFFER, depth_buffer);
+
+    if (depth) {
+		// make a depth buffer and the same size as the targetTexture
+		gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, w, h);
+		gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, depth_buffer);
+    }
+    
+    // if you want to render your whole screen to a texture of a smaller or larger size
+    // than the screen, you need to call glViewport again 
+    // (before rendering to your framebuffer) with the new dimensions of your texture, 
+    // otherwise only a small part of the texture or screen would be drawn onto the texture
+    gl.viewport(0, 0, w, h);
+    // because framebuffer dimension has changed
+    gl.clear(gl.COLOR_BUFFER_BIT);
+
+    let texel_x = 1.0 / w;
+    let texel_y = 1.0 / h;
+
+    return {
+        texture,
+        fbo,
+        depth_buffer,
+        single: true, // single fbo
+        width: w,
+        height: h,
+        texel_x,
+        texel_y,
+        internalFormat,
+        format,
+        type,
+        attach(id) {
+            gl.activeTexture(gl.TEXTURE0 + id);
+            // gl.TEXTURE0, gl.TEXTURE1, ...
+            gl.bindTexture(gl.TEXTURE_2D, texture);
+            // gl.TEXTURE_2D is now filled by this texture
+            return id;
+        },
+        addTexture(pixel) {
+			gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);// do not flip the image's y-axis
+			gl.bindTexture(gl.TEXTURE_2D, texture); // fill TEXTURE_2D slot with this FBO's texture 
+			gl.texImage2D(gl.TEXTURE_2D, 0, internalFormat, w, h, 0, format, gl.FLOAT, pixel);
+        }
+    };
+}
+
+// create 2 FBOs so one pixel processing can be done in-place
+function create_double_fbo (gl, w, h, internalFormat, format, type, param, depth) {
+    let fbo1 = create_fbo(gl, w, h, internalFormat, format, type, param, depth);
+    let fbo2 = create_fbo(gl, w, h, internalFormat, format, type, param, depth);
+
+    let texel_x = 1.0 / w;
+    let texel_y = 1.0 / h;
+
+    return {
+        width: w,
+        height: h,
+        single: false, // double fbo
+        texel_x,
+        texel_y,
+        get read() {
+            // getter for fbo1
+            return fbo1;
+        },
+        set read(value) {
+            fbo1 = value;
+        },
+        get write() {
+            // getter for fbo2
+            return fbo2;
+        },
+        set write(value) {
+            fbo2 = value;
+        },
+        swap() {
+            let temp = fbo1;
+            fbo1 = fbo2;
+            fbo2 = temp;
+        }
+    }
+}
