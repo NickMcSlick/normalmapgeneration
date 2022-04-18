@@ -33,11 +33,14 @@ const fragImgDisplay = `#version 300 es
 `;
 
 // Image urls
-let imgs = [
-	new Image("../img/earth.jpg"),
-	new Image("../img/mars.jpg"),
-	new Image("../img/wood.jpg")
+let imgUrls = [
+	"../img/earth.jpg",
+	"../img/mars.jpg",
+	"../img/wood.jpg"
 ]
+
+// Will hold the image objects
+let imgs = []
 
 // Canvas variables, contexts, programs, and VAOs
 let diffuseCanvas, normalCanvas;
@@ -52,12 +55,12 @@ function main() {
 	
 	// Height here is hardcoded, just so nice texture images are sized
 	diffuseCanvas.width = normalCanvas.width = 512;
-	normalCanvas.height = normalCanvas.height = 512;
+	diffuseCanvas.height = normalCanvas.height = 512;
 
 	glDiffuse = diffuseCanvas.getContext("webgl2");
 	glNormal = normalCanvas.getContext("webgl2");
 
-	loadAndSetupImages(imgs, glDiffuse, glNormal);
+	loadAndSetupImages(imgUrls, glDiffuse, glNormal);
 
 	diffuseProg = new GLProgram(vertexImgDisplay, fragImgDisplay, glDiffuse);
 	normalProg = new GLProgram(vertexImgDisplay, fragImgDisplay, glNormal);
@@ -68,24 +71,38 @@ function main() {
 	glDiffuse.bindVertexArray(vaoImageDiffuse);
 	glNormal.bindVertexArray(vaoImageNormal);
 
+	diffuseProg.bind(glDiffuse);
+	normalProg.bind(glNormal);
+
 	let update = function() {
-		cancelAnimationFrame(animID);
-		glNormal.clearColor(0.0, 0.0, 0.0, 1.0);
-		glDiffuse.clearColor(0.0, 0.0, 0.0, 1.0);
-		glDiffuse.drawElements(glDiffuse.TRIANGLES, 6, glDiffuse.UNSIGNED_SHORT, 0);
-		glNormal.drawElements(glNormal.TRIANGLES, 6, glNormal.UNSIGNED_SHORT, 0);
+		if (areImagesLoaded(imgs)) {
+			cancelAnimationFrame(animID);
+			glDiffuse.uniform1i(diffuseProg.u_Image, 0);
+			glNormal.uniform1i(diffuseProg.u_Image, 0);
+			glNormal.clearColor(0.0, 0.0, 0.0, 1.0);
+			glDiffuse.clearColor(0.0, 0.0, 0.0, 1.0);
+			glDiffuse.drawElements(glDiffuse.TRIANGLES, 6, glDiffuse.UNSIGNED_SHORT, 0);
+			glNormal.drawElements(glNormal.TRIANGLES, 6, glNormal.UNSIGNED_SHORT, 0);
+		}
+		animID = requestAnimationFrame(update);
 	}
 
 	update();
 }
 
 // Load and set up the images
-function loadAndSetupImages(images, gl1, gl2) {
-	for (let img in images) {
+function loadAndSetupImages(imageUrls, gl1, gl2) {
+	for (let i in imageUrls) {
+		console.log(i);
+		let img = new Image();
+		img.src = imageUrls[parseInt(i)];
+		img.width = 512;
+		img.height = 512;
+		img.crossOrigin = "";
 		img.onload = function() {
 			// Set up the images for first context
 			gl1.pixelStorei(gl1.UNPACK_FLIP_Y_WEBGL, 1);
-			gl1.activeTexture(gl1.TEXTURE0 + i);
+			gl1.activeTexture(gl1.TEXTURE0 + parseInt(i));
 			gl1.bindTexture(gl1.TEXTURE_2D, gl1.createTexture());
 			gl1.texParameteri(gl1.TEXTURE_2D, gl1.TEXTURE_WRAP_S, gl1.CLAMP_TO_EDGE);
 			gl1.texParameteri(gl1.TEXTURE_2D, gl1.TEXTURE_WRAP_T, gl1.CLAMP_TO_EDGE);
@@ -95,7 +112,7 @@ function loadAndSetupImages(images, gl1, gl2) {
 			
 			// Set up the images for second context
 			gl2.pixelStorei(gl2.UNPACK_FLIP_Y_WEBGL, 1);
-			gl2.activeTexture(gl2.TEXTURE0 + i);
+			gl2.activeTexture(gl2.TEXTURE0 + parseInt(i));
 			gl2.bindTexture(gl2.TEXTURE_2D, gl2.createTexture());
 			gl2.texParameteri(gl2.TEXTURE_2D, gl2.TEXTURE_WRAP_S, gl2.CLAMP_TO_EDGE);
 			gl2.texParameteri(gl2.TEXTURE_2D, gl2.TEXTURE_WRAP_T, gl2.CLAMP_TO_EDGE);
@@ -103,14 +120,16 @@ function loadAndSetupImages(images, gl1, gl2) {
 			gl2.texParameteri(gl2.TEXTURE_2D, gl2.TEXTURE_MAG_FILTER, gl2.LINEAR);
 			gl2.texImage2D(gl2.TEXTURE_2D, 0, gl2.RGBA, gl2.RGBA, gl2.UNSIGNED_BYTE, img);
 		}
+		
+		imgs.push(img);
 	}
 }
 
 
 // Check if images are loaded
 function areImagesLoaded(images) {
-	for (let img in images) {
-		if (!img.complete)
+	for (let i in images) {
+		if (!imgs[parseInt(i)].complete)
 			return false;
 	}
 	return true;
