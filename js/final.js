@@ -165,17 +165,18 @@ function main() {
 				glDiffuse.clear(glDiffuse.COLOR_BUFFER_BIT);
 			
 				cancelAnimationFrame(animID);
-				glDiffuse.activeTexture(glDiffuse.TEXTURE0 + 0);
-				glDiffuse.bindTexture(glDiffuse.TEXTURE_2D, texturesDiffuse[0]);
+				glDiffuse.activeTexture(glDiffuse.TEXTURE0);
+				glDiffuse.bindTexture(glDiffuse.TEXTURE_2D, texturesDiffuse[0])
 				glDiffuse.uniform1i(diffuseProg.u_Image, 0);
-				glNormal.bindTexture(glNormal.TEXTURE_2D, texturesNormal[0]);
+				glNormal.activeTexture(glNormal.TEXTURE0);
+				glNormal.bindTexture(glNormal.TEXTURE_2D, texturesNormal[0])
 				glNormal.uniform1i(normalProg.u_Image, 0);
 			
 				glDiffuse.drawElements(glDiffuse.TRIANGLES, 6, glDiffuse.UNSIGNED_SHORT, 0);
 	
 				renderImgToFbo(glNormal, imgProg, preGaussFbo);
 				sobelNormalMap(glNormal, normalProg, preGaussFbo, sobelMaskNormalFbo, 10, 1.0, false);
-				renderToScreen(glNormal, normalProg, sobelMaskNormalFbo);
+				renderToScreen(glNormal, normalProg, preGaussFbo);
 			}
 			animID = requestAnimationFrame(update);
 		}
@@ -197,7 +198,7 @@ function loadAndSetupImages(imageUrls, gl1, gl2) {
 			gl1.pixelStorei(gl1.UNPACK_FLIP_Y_WEBGL, 1);
 			gl1.activeTexture(gl1.TEXTURE0 + i);
 			let texture1 = gl1.createTexture();
-			texturesDiffuse.push(texture1);
+			texturesDiffuse[i] = texture1;
 			gl1.bindTexture(gl1.TEXTURE_2D, texture1);
 			gl1.texParameteri(gl1.TEXTURE_2D, gl1.TEXTURE_WRAP_S, gl1.CLAMP_TO_EDGE);
 			gl1.texParameteri(gl1.TEXTURE_2D, gl1.TEXTURE_WRAP_T, gl1.CLAMP_TO_EDGE);
@@ -207,7 +208,7 @@ function loadAndSetupImages(imageUrls, gl1, gl2) {
 			
 			// Set up the images for second context
 			let texture2 = gl2.createTexture();
-			texturesNormal.push(texture2);
+			texturesNormal[i] = texture2;
 			gl2.pixelStorei(gl2.UNPACK_FLIP_Y_WEBGL, 1);
 			gl2.activeTexture(gl2.TEXTURE0 + i);
 			gl2.bindTexture(gl2.TEXTURE_2D, texture2);
@@ -216,9 +217,10 @@ function loadAndSetupImages(imageUrls, gl1, gl2) {
 			gl2.texParameteri(gl2.TEXTURE_2D, gl2.TEXTURE_MIN_FILTER, gl2.LINEAR);
 			gl2.texParameteri(gl2.TEXTURE_2D, gl2.TEXTURE_MAG_FILTER, gl2.LINEAR);
 			gl2.texImage2D(gl2.TEXTURE_2D, 0, gl2.RGBA, gl2.RGBA, gl2.UNSIGNED_BYTE, img);
+
+			imgs[i] = img;
 		}
 		
-		imgs.push(img);
 	}
 }
 
@@ -252,7 +254,7 @@ function createVaoImage(gl) {
 
 // Render to the screen
 function renderToScreen(gl, prog, fbo) {
-	gl.uniform1i(prog.uniforms.u_Image, 1);
+	gl.uniform1i(prog.uniforms.u_Image, fbo.read.attach(8));
 	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 	gl.drawElements(glNormal.TRIANGLES, 6, glNormal.UNSIGNED_SHORT, 0);
 }
@@ -262,9 +264,8 @@ function renderToScreen(gl, prog, fbo) {
 function sobelNormalMap(gl, prog, ori, dst, scale, normalHeight, swap) {
     let program = prog;
     program.bind(gl);
-	console.log("swapping");
 
-    gl.uniform1i(program.uniforms.u_Image, ori.read.attach(0));
+    gl.uniform1i(program.uniforms.u_Image, ori.read.attach(8));
     gl.uniform2f(program.uniforms.u_Texel, ori.texel_x, ori.texel_y);
     gl.uniform1f(program.uniforms.u_Scale, scale);
 	gl.uniform1f(program.uniforms.u_NormalHeight, normalHeight);
@@ -274,20 +275,23 @@ function sobelNormalMap(gl, prog, ori, dst, scale, normalHeight, swap) {
 
 	gl.bindFramebuffer(gl.FRAMEBUFFER, dst.write.fbo);
 
+	dst.swap();
+
 	gl.drawElements(glNormal.TRIANGLES, 6, glNormal.UNSIGNED_SHORT, 0);
 }
 
 /***** BASED ON HW3 *****/
 // Sobel normal mask drawing
-function renderImgToFbo(gl, prog, fbo, texture, i) {
+function renderImgToFbo(gl, prog, fbo) {
     let program = prog;
     program.bind(gl);
 
-	gl.bindFramebuffer(gl.FRAMEBUFFER, fbo.read.fbo);
-    gl.uniform1i(program.uniforms.u_Image, fbo.read.attach(0));
+	gl.bindFramebuffer(gl.FRAMEBUFFER, fbo.write.fbo);
     gl.uniform2f(program.uniforms.u_Texel, fbo.read.fbo.texel_x, fbo.read.fbo.texel_y);
 	
     gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+
+	fbo.swap();
 
 	gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
 }
