@@ -147,13 +147,20 @@ function main() {
 	diffuseProg.bind(glDiffuse);
 	normalProg.bind(glNormal);
 
-	sobelMaskNormalFbo = create_double_fbo(glNormal, 512, 512, glNormal.RGBA16F, glNormal.RGBA, glNormal.HALF_FLOAT, glNormal.LINEAR, false);
+	glNormal.getExtension('EXT_color_buffer_float');
+
 	preGaussFbo = create_double_fbo(glNormal, 512, 512, glNormal.RGBA16F, glNormal.RGBA, glNormal.HALF_FLOAT, glNormal.LINEAR, false);
+	sobelMaskNormalFbo = create_double_fbo(glNormal, 512, 512, glNormal.RGBA16F, glNormal.RGBA, glNormal.HALF_FLOAT, glNormal.LINEAR, false);
 	postGaussFbo = create_double_fbo(glNormal, 512, 512, glNormal.RGBA16F, glNormal.RGBA, glNormal.HALF_FLOAT, glNormal.LINEAR, false);
 	
-	let update = function() {sobelMaskNormalFbo = create_double_fbo(glNormal, 512, 512, glNormal.RGBA16F, glNormal.RGBA, glNormal.HALF_FLOAT, glNormal.LINEAR, false);
+	let update = function() {
 							 
 	if (areImagesLoaded(imgs)) {
+			glNormal.clearColor(0.0, 0.0, 0.0, 1.0);
+			glNormal.clear(glNormal.COLOR_BUFFER_BIT);
+			
+			glDiffuse.clearColor(0.0, 0.0, 0.0, 1.0);
+			glDiffuse.clear(glDiffuse.COLOR_BUFFER_BIT);
 			cancelAnimationFrame(animID);
 			glDiffuse.uniform1i(diffuseProg.u_Image, 0);
 			glNormal.uniform1i(diffuseProg.u_Image, 0);
@@ -253,13 +260,13 @@ function sobelNormalMap(gl, ori, dst, scale, normalHeight, swap) {
 
 /***** BASED ON HW3 *****/
 // Sobel normal mask drawing
-function renderImg(gl, prog, fbo) {
+function renderImgToFbo(gl, prog, fbo) {
     let program = prog;
     program.bind(gl);
 
 	gl.bindFrameBuffer(gl.FRAMEBUFFER, fbo);
 
-    gl.uniform1i(program.uniforms.u_Image, );
+    gl.uniform1i(program.uniforms.u_Image, 0);
     gl.uniform2f(program.uniforms.u_Texel, src.texel_x, src.texel_y);
 	
     gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
@@ -304,22 +311,6 @@ function cg_init_shaders(gl, vshader, fshader) {
   var program = createProgram(gl, vshader, fshader);
 
   return program;
-}
-
-function cg_init_framebuffers(gl, img) {
-    console.log("Image width: " + img.width);
-    console.log("Image height: " + img.height);
-
-    gl.getExtension('EXT_color_buffer_float');
-    // enables float framebuffer color attachment
-
-    out_depth = create_double_fbo(canvas.width, canvas.height, gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT, gl.LINEAR, true);
-    toon = create_double_fbo(canvas.width, canvas.height, gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT, gl.LINEAR, false);
-    outline = create_double_fbo(canvas.width, canvas.height, gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT, gl.LINEAR, false);
-    out = create_double_fbo(canvas.width, canvas.height, gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT, gl.LINEAR, false);
-    gradient = create_double_fbo(canvas.width, canvas.height, gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT, gl.LINEAR, false);
-    mag = create_double_fbo(canvas.width, canvas.height, gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT, gl.LINEAR, false);
-    canny = create_double_fbo(canvas.width, canvas.height, gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT, gl.LINEAR, false);
 }
 
 /***** FBOS FROM CLASS *****/
