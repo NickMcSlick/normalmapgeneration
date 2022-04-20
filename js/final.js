@@ -114,7 +114,8 @@ let imgUrls = [
 
 // Will hold the image and texture objects
 let imgs = []
-let textures = [];
+let texturesDiffuse = [];
+let texturesNormal = [];
 
 // Canvas variables, contexts, programs, and VAOs
 let diffuseCanvas, normalCanvas;
@@ -137,6 +138,7 @@ function main() {
 	loadAndSetupImages(imgUrls, glDiffuse, glNormal);
 
 	diffuseProg = new GLProgram(vertexImgDisplay, fragImgDisplay, glDiffuse);
+	imgProg = new GLProgram(vertexImgDisplay, fragImgDisplay, glNormal);
 	normalProg = new GLProgram(vertexImgDisplay, fragSobelNormalGeneration, glNormal);
 
 	vaoImageDiffuse = createVaoImage(glDiffuse);
@@ -163,15 +165,15 @@ function main() {
 				glDiffuse.clear(glDiffuse.COLOR_BUFFER_BIT);
 			
 				cancelAnimationFrame(animID);
-			
-				glDiffuse.bindTexture(glDiffuse.TEXTURE_2D, textures[0]);
+				glDiffuse.activeTexture(glDiffuse.TEXTURE0 + 0);
+				glDiffuse.bindTexture(glDiffuse.TEXTURE_2D, texturesDiffuse[0]);
 				glDiffuse.uniform1i(diffuseProg.u_Image, 0);
-				glNormal.bindTexture(glNormal.TEXTURE_2D, textures[0]);
+				glNormal.bindTexture(glNormal.TEXTURE_2D, texturesNormal[0]);
 				glNormal.uniform1i(normalProg.u_Image, 0);
 			
 				glDiffuse.drawElements(glDiffuse.TRIANGLES, 6, glDiffuse.UNSIGNED_SHORT, 0);
 	
-				renderImgToFbo(glNormal, normalProg, preGaussFbo);
+				renderImgToFbo(glNormal, imgProg, preGaussFbo);
 				sobelNormalMap(glNormal, normalProg, preGaussFbo, sobelMaskNormalFbo, 10, 1.0, false);
 				renderToScreen(glNormal, normalProg, sobelMaskNormalFbo);
 			}
@@ -193,10 +195,10 @@ function loadAndSetupImages(imageUrls, gl1, gl2) {
 		img.onload = function() {
 			// Set up the images for first context
 			gl1.pixelStorei(gl1.UNPACK_FLIP_Y_WEBGL, 1);
-			gl1.activeTexture(i);
-			let texture = gl1.createTexture();
-			textures.push(texture);
-			gl1.bindTexture(gl1.TEXTURE_2D, texture);
+			gl1.activeTexture(gl1.TEXTURE0 + i);
+			let texture1 = gl1.createTexture();
+			texturesDiffuse.push(texture1);
+			gl1.bindTexture(gl1.TEXTURE_2D, texture1);
 			gl1.texParameteri(gl1.TEXTURE_2D, gl1.TEXTURE_WRAP_S, gl1.CLAMP_TO_EDGE);
 			gl1.texParameteri(gl1.TEXTURE_2D, gl1.TEXTURE_WRAP_T, gl1.CLAMP_TO_EDGE);
 			gl1.texParameteri(gl1.TEXTURE_2D, gl1.TEXTURE_MIN_FILTER, gl1.LINEAR);
@@ -204,9 +206,11 @@ function loadAndSetupImages(imageUrls, gl1, gl2) {
 			gl1.texImage2D(gl1.TEXTURE_2D, 0, gl1.RGBA, gl1.RGBA, gl1.UNSIGNED_BYTE, img);
 			
 			// Set up the images for second context
+			let texture2 = gl2.createTexture();
+			texturesNormal.push(texture2);
 			gl2.pixelStorei(gl2.UNPACK_FLIP_Y_WEBGL, 1);
-			gl2.activeTexture(i);
-			gl2.bindTexture(gl2.TEXTURE_2D, gl2.createTexture());
+			gl2.activeTexture(gl2.TEXTURE0 + i);
+			gl2.bindTexture(gl2.TEXTURE_2D, texture2);
 			gl2.texParameteri(gl2.TEXTURE_2D, gl2.TEXTURE_WRAP_S, gl2.CLAMP_TO_EDGE);
 			gl2.texParameteri(gl2.TEXTURE_2D, gl2.TEXTURE_WRAP_T, gl2.CLAMP_TO_EDGE);
 			gl2.texParameteri(gl2.TEXTURE_2D, gl2.TEXTURE_MIN_FILTER, gl2.LINEAR);
@@ -258,8 +262,9 @@ function renderToScreen(gl, prog, fbo) {
 function sobelNormalMap(gl, prog, ori, dst, scale, normalHeight, swap) {
     let program = prog;
     program.bind(gl);
+	console.log("swapping");
 
-    gl.uniform1i(program.uniforms.u_Image, ori.read.attach(1));
+    gl.uniform1i(program.uniforms.u_Image, ori.read.attach(0));
     gl.uniform2f(program.uniforms.u_Texel, ori.texel_x, ori.texel_y);
     gl.uniform1f(program.uniforms.u_Scale, scale);
 	gl.uniform1f(program.uniforms.u_NormalHeight, normalHeight);
@@ -267,21 +272,19 @@ function sobelNormalMap(gl, prog, ori, dst, scale, normalHeight, swap) {
 
     gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
 
-	gl.bindFramebuffer(gl.FRAMEBUFFER, ori.write.fbo);
-
-	ori.swap();
+	gl.bindFramebuffer(gl.FRAMEBUFFER, dst.write.fbo);
 
 	gl.drawElements(glNormal.TRIANGLES, 6, glNormal.UNSIGNED_SHORT, 0);
 }
 
 /***** BASED ON HW3 *****/
 // Sobel normal mask drawing
-function renderImgToFbo(gl, prog, fbo) {
+function renderImgToFbo(gl, prog, fbo, texture, i) {
     let program = prog;
     program.bind(gl);
 
 	gl.bindFramebuffer(gl.FRAMEBUFFER, fbo.read.fbo);
-    gl.uniform1i(program.uniforms.u_Image, 0);
+    gl.uniform1i(program.uniforms.u_Image, fbo.read.attach(0));
     gl.uniform2f(program.uniforms.u_Texel, fbo.read.fbo.texel_x, fbo.read.fbo.texel_y);
 	
     gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
