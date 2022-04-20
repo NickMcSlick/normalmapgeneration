@@ -49,29 +49,29 @@ const fragSobelNormalGeneration = `#version 300 es
     out vec4 cg_FragColor;
         
     void main () {
-        float x = v_coord.x;
-        float y = v_coord.y;
-        float dx = u_texel.x;
-        float dy = u_texel.y;    
+        float x = v_Coord.x;
+        float y = v_Coord.y;
+        float dx = u_Texel.x;
+        float dy = u_Texel.y;    
   
         vec2 g = vec2(0.0);
 
         g.x = (          
-			-1.0 * texture(u_image, vec2(x-dx, y-dy)).r +
-			-2.0 * texture(u_image, vec2(x-dx, y)).r +
-			-1.0 * texture(u_image, vec2(x-dx, y+dy)).r +
-			+1.0 * texture(u_image, vec2(x+dx, y-dy)).r +
-			+2.0 * texture(u_image, vec2(x+dx, y)).r +
-			+1.0 * texture(u_image, vec2(x+dx, y+dy)).r		
+			-1.0 * texture(u_Image, vec2(x-dx, y-dy)).r +
+			-2.0 * texture(u_Image, vec2(x-dx, y)).r +
+			-1.0 * texture(u_Image, vec2(x-dx, y+dy)).r +
+			+1.0 * texture(u_Image, vec2(x+dx, y-dy)).r +
+			+2.0 * texture(u_Image, vec2(x+dx, y)).r +
+			+1.0 * texture(u_Image, vec2(x+dx, y+dy)).r		
 		); // [-4, 4] because texture returns [0, 1]		   
 
 		g.y = (		
-			-1.0 * texture(u_image, vec2(x-dx, y-dy)).r +
-			-2.0 * texture(u_image, vec2(x,    y-dy)).r +
-			-1.0 * texture(u_image, vec2(x+dx, y-dy)).r +
-			+1.0 * texture(u_image, vec2(x-dx, y+dy)).r +
-			+2.0 * texture(u_image, vec2(x,    y+dy)).r +
-			+1.0 * texture(u_image, vec2(x+dx, y+dy)).r		
+			-1.0 * texture(u_Image, vec2(x-dx, y-dy)).r +
+			-2.0 * texture(u_Image, vec2(x,    y-dy)).r +
+			-1.0 * texture(u_Image, vec2(x+dx, y-dy)).r +
+			+1.0 * texture(u_Image, vec2(x-dx, y+dy)).r +
+			+2.0 * texture(u_Image, vec2(x,    y+dy)).r +
+			+1.0 * texture(u_Image, vec2(x+dx, y+dy)).r		
 		); // [-4, 4] because texture returns [0, 1]		   
 		
 		g.x /= 4.0; // [-1, 1]
@@ -83,7 +83,7 @@ const fragSobelNormalGeneration = `#version 300 es
         // if zero gradient, make it a vertical tangent vector
         if (g.x == 0.0 && g.y == 0.0) g = vec2(1.0, 0.0); 
 
-		if (u_swap_direction) {
+		if (u_SwapDirection) {
 			g.x = -g.x;
 			g.y = -g.y;
 		}
@@ -94,12 +94,12 @@ const fragSobelNormalGeneration = `#version 300 es
 
         /////////////////////////////////////////
         // enhance gradient magnitude
-	    mag = tanh(u_scale * mag);
+	    mag = tanh(u_Scale * mag);
 	    /////////////////////////////////////////
 
 	    //cg_FragColor = vec4(mag, mag, mag, 1.0);
 	
-		cg_FragColor = mix(vec4(g, u_normal_height, 1.0), vec4(0.5, 0.5, 1.0, 1.0), 1.0 - mag);	
+		cg_FragColor = mix(vec4(g, u_NormalHeight, 1.0), vec4(0.5, 0.5, 1.0, 1.0), 1.0 - mag);	
     }       
 `;
 
@@ -112,8 +112,9 @@ let imgUrls = [
 	"../img/wood.jpg"
 ]
 
-// Will hold the image objects
+// Will hold the image and texture objects
 let imgs = []
+let textures = [];
 
 // Canvas variables, contexts, programs, and VAOs
 let diffuseCanvas, normalCanvas;
@@ -136,7 +137,7 @@ function main() {
 	loadAndSetupImages(imgUrls, glDiffuse, glNormal);
 
 	diffuseProg = new GLProgram(vertexImgDisplay, fragImgDisplay, glDiffuse);
-	normalProg = new GLProgram(vertexImgDisplay, fragImgDisplay, glNormal);
+	normalProg = new GLProgram(vertexImgDisplay, fragSobelNormalGeneration, glNormal);
 
 	vaoImageDiffuse = createVaoImage(glDiffuse);
 	vaoImageNormal = createVaoImage(glNormal);
@@ -155,42 +156,47 @@ function main() {
 	
 	let update = function() {
 							 
-	if (areImagesLoaded(imgs)) {
-			glNormal.clearColor(0.0, 0.0, 0.0, 1.0);
-			glNormal.clear(glNormal.COLOR_BUFFER_BIT);
-			glDiffuse.clearColor(0.0, 0.0, 0.0, 1.0);
-			glDiffuse.clear(glDiffuse.COLOR_BUFFER_BIT);
-			cancelAnimationFrame(animID);
-			glDiffuse.uniform1i(diffuseProg.u_Image, 0);
-			glNormal.uniform1i(diffuseProg.u_Image, 0);
-			glNormal.clearColor(0.0, 0.0, 0.0, 1.0);
-			glDiffuse.clearColor(0.0, 0.0, 0.0, 1.0);
-			glDiffuse.drawElements(glDiffuse.TRIANGLES, 6, glDiffuse.UNSIGNED_SHORT, 0);
-
-			renderImgToFbo(glNormal, normalProg, preGaussFbo);
-			sobelNormalMap(glNormal, normalProg, preGaussFbo, sobelMaskNormalFbo, 1.0, 1.0, false);
-			renderToScreen(glNormal, normalProg, sobelMaskNormalFbo);
+		if (areImagesLoaded(imgs)) {
+				glNormal.clearColor(0.0, 0.0, 0.0, 1.0);
+				glNormal.clear(glNormal.COLOR_BUFFER_BIT);
+				glDiffuse.clearColor(0.0, 0.0, 0.0, 1.0);
+				glDiffuse.clear(glDiffuse.COLOR_BUFFER_BIT);
+			
+				cancelAnimationFrame(animID);
+			
+				glDiffuse.bindTexture(glDiffuse.TEXTURE_2D, textures[0]);
+				glDiffuse.uniform1i(diffuseProg.u_Image, 0);
+				glNormal.bindTexture(glNormal.TEXTURE_2D, textures[0]);
+				glNormal.uniform1i(normalProg.u_Image, 0);
+			
+				glDiffuse.drawElements(glDiffuse.TRIANGLES, 6, glDiffuse.UNSIGNED_SHORT, 0);
+	
+				renderImgToFbo(glNormal, normalProg, preGaussFbo);
+				sobelNormalMap(glNormal, normalProg, preGaussFbo, sobelMaskNormalFbo, 10, 1.0, false);
+				renderToScreen(glNormal, normalProg, sobelMaskNormalFbo);
+			}
+			animID = requestAnimationFrame(update);
 		}
-		animID = requestAnimationFrame(update);
-	}
 
 	update();
 }
 
 // Load and set up the images
 function loadAndSetupImages(imageUrls, gl1, gl2) {
-	for (let i in imageUrls) {
+	for (let i = 0; i < imageUrls.length; i++) {
 		console.log(i);
 		let img = new Image();
-		img.src = imageUrls[parseInt(i)];
+		img.src = imageUrls[i];
 		img.width = 512;
 		img.height = 512;
 		img.crossOrigin = "";
 		img.onload = function() {
 			// Set up the images for first context
 			gl1.pixelStorei(gl1.UNPACK_FLIP_Y_WEBGL, 1);
-			gl1.activeTexture(gl1.TEXTURE0 + parseInt(i));
-			gl1.bindTexture(gl1.TEXTURE_2D, gl1.createTexture());
+			gl1.activeTexture(i);
+			let texture = gl1.createTexture();
+			textures.push(texture);
+			gl1.bindTexture(gl1.TEXTURE_2D, texture);
 			gl1.texParameteri(gl1.TEXTURE_2D, gl1.TEXTURE_WRAP_S, gl1.CLAMP_TO_EDGE);
 			gl1.texParameteri(gl1.TEXTURE_2D, gl1.TEXTURE_WRAP_T, gl1.CLAMP_TO_EDGE);
 			gl1.texParameteri(gl1.TEXTURE_2D, gl1.TEXTURE_MIN_FILTER, gl1.LINEAR);
@@ -199,7 +205,7 @@ function loadAndSetupImages(imageUrls, gl1, gl2) {
 			
 			// Set up the images for second context
 			gl2.pixelStorei(gl2.UNPACK_FLIP_Y_WEBGL, 1);
-			gl2.activeTexture(gl2.TEXTURE0 + parseInt(i));
+			gl2.activeTexture(i);
 			gl2.bindTexture(gl2.TEXTURE_2D, gl2.createTexture());
 			gl2.texParameteri(gl2.TEXTURE_2D, gl2.TEXTURE_WRAP_S, gl2.CLAMP_TO_EDGE);
 			gl2.texParameteri(gl2.TEXTURE_2D, gl2.TEXTURE_WRAP_T, gl2.CLAMP_TO_EDGE);
@@ -263,9 +269,9 @@ function sobelNormalMap(gl, prog, ori, dst, scale, normalHeight, swap) {
 
 	gl.bindFramebuffer(gl.FRAMEBUFFER, ori.write.fbo);
 
+	ori.swap();
+
 	gl.drawElements(glNormal.TRIANGLES, 6, glNormal.UNSIGNED_SHORT, 0);
-	
-    dst.swap();
 }
 
 /***** BASED ON HW3 *****/
@@ -275,7 +281,6 @@ function renderImgToFbo(gl, prog, fbo) {
     program.bind(gl);
 
 	gl.bindFramebuffer(gl.FRAMEBUFFER, fbo.read.fbo);
-
     gl.uniform1i(program.uniforms.u_Image, 0);
     gl.uniform2f(program.uniforms.u_Texel, fbo.read.fbo.texel_x, fbo.read.fbo.texel_y);
 	
