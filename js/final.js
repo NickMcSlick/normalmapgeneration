@@ -158,7 +158,6 @@ function main() {
 	if (areImagesLoaded(imgs)) {
 			glNormal.clearColor(0.0, 0.0, 0.0, 1.0);
 			glNormal.clear(glNormal.COLOR_BUFFER_BIT);
-			
 			glDiffuse.clearColor(0.0, 0.0, 0.0, 1.0);
 			glDiffuse.clear(glDiffuse.COLOR_BUFFER_BIT);
 			cancelAnimationFrame(animID);
@@ -167,7 +166,10 @@ function main() {
 			glNormal.clearColor(0.0, 0.0, 0.0, 1.0);
 			glDiffuse.clearColor(0.0, 0.0, 0.0, 1.0);
 			glDiffuse.drawElements(glDiffuse.TRIANGLES, 6, glDiffuse.UNSIGNED_SHORT, 0);
-			glNormal.drawElements(glNormal.TRIANGLES, 6, glNormal.UNSIGNED_SHORT, 0);
+
+			renderImgToFbo(glNormal, normalProg, preGaussFbo);
+			sobelNormalMap(glNormal, normalProg, preGaussFbo, sobelMaskNormalFbo, 1.0, 1.0, false);
+			renderToScreen(glNormal, normalProg, sobelMaskNormalFbo);
 		}
 		animID = requestAnimationFrame(update);
 	}
@@ -238,23 +240,31 @@ function createVaoImage(gl) {
 	return vaoImage;
 }
 
+// Render to the screen
+function renderToScreen(gl, prog, fbo) {
+	gl.uniform1i(prog.uniforms.u_Image, 1);
+	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+	gl.drawElements(glNormal.TRIANGLES, 6, glNormal.UNSIGNED_SHORT, 0);
+}
 
 /***** BASED ON HW3 *****/
 // Sobel normal mask drawing
-function sobelNormalMap(gl, ori, dst, scale, normalHeight, swap) {
-    let program = prog_sobel;
-    program.bind();
+function sobelNormalMap(gl, prog, ori, dst, scale, normalHeight, swap) {
+    let program = prog;
+    program.bind(gl);
 
-    gl.uniform1i(program.uniforms.u_Image, src.read.attach(1));
-    gl.uniform2f(program.uniforms.u_Texel, src.texel_x, src.texel_y);
+    gl.uniform1i(program.uniforms.u_Image, ori.read.attach(1));
+    gl.uniform2f(program.uniforms.u_Texel, ori.texel_x, ori.texel_y);
     gl.uniform1f(program.uniforms.u_Scale, scale);
 	gl.uniform1f(program.uniforms.u_NormalHeight, normalHeight);
 	gl.uniform1f(program.uniforms.u_SwapDirection, swap);
 
     gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
 
-    let write = dst.write.fbo;
-   
+	gl.bindFramebuffer(gl.FRAMEBUFFER, ori.write.fbo);
+
+	gl.drawElements(glNormal.TRIANGLES, 6, glNormal.UNSIGNED_SHORT, 0);
+	
     dst.swap();
 }
 
@@ -264,10 +274,10 @@ function renderImgToFbo(gl, prog, fbo) {
     let program = prog;
     program.bind(gl);
 
-	gl.bindFrameBuffer(gl.FRAMEBUFFER, fbo);
+	gl.bindFramebuffer(gl.FRAMEBUFFER, fbo.read.fbo);
 
     gl.uniform1i(program.uniforms.u_Image, 0);
-    gl.uniform2f(program.uniforms.u_Texel, src.texel_x, src.texel_y);
+    gl.uniform2f(program.uniforms.u_Texel, fbo.read.fbo.texel_x, fbo.read.fbo.texel_y);
 	
     gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
 
