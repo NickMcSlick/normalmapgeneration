@@ -41,6 +41,7 @@ const fragSobelNormalGeneration = `#version 300 es
     
     in vec2 v_Coord;
     uniform sampler2D u_Image;
+	uniform bool u_Loaded;
     uniform vec2 u_Texel; // added by hk
     uniform float u_Scale;
 	uniform float u_NormalHeight;
@@ -55,6 +56,8 @@ const fragSobelNormalGeneration = `#version 300 es
         float dy = u_Texel.y;    
   
         vec2 g = vec2(0.0);
+
+		if (u_Loaded) {}
 
         g.x = (          
 			-1.0 * texture(u_Image, vec2(x-dx, y-dy)).r +
@@ -113,7 +116,10 @@ let imgUrls = [
 ]
 
 // Will hold the image and texture objects
-let imgs = []
+// Note that there are placeholder ready attributes
+// This is done so that even if an image is not placed on this image,
+// the progam is still aware that the image is not ready
+let imgs = [ { ready: false }, { ready: false }, { ready: false }];
 let texturesDiffuse = [];
 let texturesNormal = [];
 
@@ -122,7 +128,14 @@ let diffuseCanvas, normalCanvas;
 let glDiffuse, glNormal;
 let diffuseProg, normalProg;
 let vaoImageDiffuse, vaoImageNormal;
-let animID;
+let animID = 0;
+
+config = {
+	TEXTURE: 0,
+	SWAP_DIRECTION: false,
+	SCALE: 100,
+	Z_HEIGHT: 1.0
+}
 
 function main() {
 	diffuseCanvas = document.getElementById("diffuseCanvas");
@@ -155,36 +168,45 @@ function main() {
 	preGaussFbo = create_double_fbo(glNormal, 512, 512, glNormal.RGBA16F, glNormal.RGBA, glNormal.HALF_FLOAT, glNormal.LINEAR, false);
 	sobelMaskNormalFbo = create_double_fbo(glNormal, 512, 512, glNormal.RGBA16F, glNormal.RGBA, glNormal.HALF_FLOAT, glNormal.LINEAR, false);
 	postGaussFbo = create_double_fbo(glNormal, 512, 512, glNormal.RGBA16F, glNormal.RGBA, glNormal.HALF_FLOAT, glNormal.LINEAR, false);
-	
-	let update = function() {
-							 
+
+	let update = function() {		
 		if (areImagesLoaded(imgs)) {
-				glNormal.clearColor(0.0, 0.0, 0.0, 1.0);
+				glNormal.clearColor(1.0, 1.0, 1.0, 1.0);
+				glDiffuse.clearColor(1.0, 1.0, 1.0, 1.0);
 				glNormal.clear(glNormal.COLOR_BUFFER_BIT);
-				glDiffuse.clearColor(0.0, 0.0, 0.0, 1.0);
 				glDiffuse.clear(glDiffuse.COLOR_BUFFER_BIT);
-			
 				cancelAnimationFrame(animID);
-				glDiffuse.activeTexture(glDiffuse.TEXTURE0 + 0);
-				glDiffuse.bindTexture(glDiffuse.TEXTURE_2D, texturesDiffuse[0]);
+				glDiffuse.activeTexture(glDiffuse.TEXTURE0);
+				glDiffuse.bindTexture(glDiffuse.TEXTURE_2D, texturesDiffuse[config.TEXTURE]);
 				glDiffuse.uniform1i(diffuseProg.u_Image, 0);
+				glNormal.activeTexture(glNormal.TEXTURE0);
+				glNormal.bindTexture(glNormal.TEXTURE_2D, texturesNormal[config.TEXTURE]);
+				glNormal.uniform1i(normalProg.u_Image, 0);
 			
 				glDiffuse.drawElements(glDiffuse.TRIANGLES, 6, glDiffuse.UNSIGNED_SHORT, 0);
 	
-				renderImgToFbo(glNormal, imgProg, preGaussFbo, 1);
-				//sobelNormalMap(glNormal, normalProg, preGaussFbo, sobelMaskNormalFbo, 10, 1.0, false);
+				renderImgToFbo(glNormal, imgProg, preGaussFbo);
+				sobelNormalMap(glNormal, normalProg, preGaussFbo, sobelMaskNormalFbo, config.SCALE, config.Z_HEIGHT, config.SWAP_DIRECTION);
 				renderToScreen(glNormal, normalProg, preGaussFbo);
 			}
-			animID = requestAnimationFrame(update);
-		}
+		animID = requestAnimationFrame(update);
+	}
 
 	update();
+
+	// Add dat.GUI elements
+    let gui = new dat.GUI();
+    gui.add(config, "TEXTURE", { "Earth": 0, "Mars": 1, "Wood": 2 }).name("Texture Pair").onFinishChange(update);
+    gui.add(config, "SWAP_DIRECTION").name("Invert Normal Direction").onFinishChange(update);
+    gui.add(config, "SCALE", 1, 500).name("Normal Scaling").onFinishChange(update);
+	gui.add(config, "Z_HEIGHT", 0, 1).name("Z Height").onFinishChange(update);
 }
 
 // Load and set up the images
 function loadAndSetupImages(imageUrls, gl1, gl2) {
 	for (let i = 0; i < imageUrls.length; i++) {
 		let img = new Image();
+		img.ready = false;
 		img.src = imageUrls[i];
 		img.width = 512;
 		img.height = 512;
@@ -213,17 +235,21 @@ function loadAndSetupImages(imageUrls, gl1, gl2) {
 			gl2.texParameteri(gl2.TEXTURE_2D, gl2.TEXTURE_MIN_FILTER, gl2.LINEAR);
 			gl2.texParameteri(gl2.TEXTURE_2D, gl2.TEXTURE_MAG_FILTER, gl2.LINEAR);
 			gl2.texImage2D(gl2.TEXTURE_2D, 0, gl2.RGBA, gl2.RGBA, gl2.UNSIGNED_BYTE, img);
+
+			console.log("loaded image " + i);
+			// New attribute for the image to determine if it has been loaded
+			img.ready = true;
+			imgs[i] = img;
 		}
 		
-		imgs[i] = img;
 	}
 }
 
 
 // Check if images are loaded
 function areImagesLoaded(images) {
-	for (let i in images) {
-		if (!imgs[parseInt(i)].complete)
+	for (let i = 0; i < images.length; i++) {
+		if (!images[i].ready || !images[i].complete || images[i].naturalHeight === 0)
 			return false;
 	}
 	return true;
@@ -249,10 +275,7 @@ function createVaoImage(gl) {
 
 // Render to the screen
 function renderToScreen(gl, prog, fbo) {
-	let program = prog;
-    program.bind(gl);
 	gl.uniform1i(prog.uniforms.u_Image, fbo.read.attach(8));
-
 	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 	gl.drawElements(glNormal.TRIANGLES, 6, glNormal.UNSIGNED_SHORT, 0);
 }
@@ -273,19 +296,17 @@ function sobelNormalMap(gl, prog, ori, dst, scale, normalHeight, swap) {
 
 	gl.bindFramebuffer(gl.FRAMEBUFFER, dst.write.fbo);
 
+	dst.swap();
+
 	gl.drawElements(glNormal.TRIANGLES, 6, glNormal.UNSIGNED_SHORT, 0);
 }
 
 /***** BASED ON HW3 *****/
 // Sobel normal mask drawing
-function renderImgToFbo(gl, prog, fbo, i) {
+function renderImgToFbo(gl, prog, fbo) {
     let program = prog;
     program.bind(gl);
 
-	gl.activeTexture(gl.TEXTURE0 + i);
-	gl.bindTexture(gl.TEXTURE_2D, texturesNormal[i]);
-	glNormal.uniform1i(prog.u_Image, i);
-	
 	gl.bindFramebuffer(gl.FRAMEBUFFER, fbo.write.fbo);
     gl.uniform2f(program.uniforms.u_Texel, fbo.read.fbo.texel_x, fbo.read.fbo.texel_y);
 	
