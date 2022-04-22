@@ -32,6 +32,45 @@ const fragImgDisplay = `#version 300 es
 	}
 `;
 
+// Gauss shader
+// Based off of HW3
+const fragGauss = `#version 300 es
+    precision highp float; 
+    precision highp sampler2D;
+    
+    uniform vec2 u_Texel; // added by hk
+    uniform sampler2D u_Image;
+    uniform float u_Half; // kernel half width
+    in vec2 v_Coord;
+    out vec4 cg_FragColor;
+        
+    void main () {
+        float x = v_Coord.x;
+        float y = v_Coord.y;
+        float dx = u_Texel.x;
+        float dy = u_Texel.y;        
+
+		float sigma = u_Half; 
+        float twoSigma2 = 2.0 * sigma * sigma;
+        vec4 sum = vec4(0.0, 0.0, 0.0, 0.0);
+        float w_sum = 0.0;
+        	
+        for (float j = -u_Half; j <= u_Half; j+=1.0) {	
+			for (float i = -u_Half; i <= u_Half; i+=1.0) {	
+			    float d = distance(vec2(0.0), vec2(i, j));
+			    if (d > u_Half) continue;		
+				float weight = exp(-d * d / twoSigma2);
+				vec4 st = texture(u_Image, vec2(x+dx*i, y+dy*j));
+				sum += weight * st; // sum is float4
+				w_sum += weight;
+			}
+        }		
+		
+		sum /= w_sum; // normalize weight
+		                
+	    cg_FragColor = sum; 
+    }
+`;
 
 // NORMAL MAP GENERATION USING SOBEL MASKING
 // This is the major part of the project, attempting to tweak the normal maps
@@ -41,7 +80,6 @@ const fragSobelNormalGeneration = `#version 300 es
     
     in vec2 v_Coord;
     uniform sampler2D u_Image;
-	uniform bool u_Loaded;
     uniform vec2 u_Texel; // added by hk
     uniform float u_Scale;
 	uniform float u_NormalHeight;
@@ -56,8 +94,6 @@ const fragSobelNormalGeneration = `#version 300 es
         float dy = u_Texel.y;    
   
         vec2 g = vec2(0.0);
-
-		if (u_Loaded) {}
 
         g.x = (          
 			-1.0 * texture(u_Image, vec2(x-dx, y-dy)).r +
@@ -134,7 +170,9 @@ config = {
 	TEXTURE: 0,
 	SWAP_DIRECTION: false,
 	SCALE: 100,
-	Z_HEIGHT: 1.0
+	Z_HEIGHT: 1.0,
+	PREGAUSS: 3.0,
+	POSTGAUSS: 3.0,
 }
 
 function main() {
@@ -153,6 +191,7 @@ function main() {
 	diffuseProg = new GLProgram(vertexImgDisplay, fragImgDisplay, glDiffuse);
 	imgProg = new GLProgram(vertexImgDisplay, fragImgDisplay, glNormal);
 	normalProg = new GLProgram(vertexImgDisplay, fragSobelNormalGeneration, glNormal);
+	gaussProg = new GLProgram(vertexImgDisplay, fragGauss, glNormal);
 
 	vaoImageDiffuse = createVaoImage(glDiffuse);
 	vaoImageNormal = createVaoImage(glNormal);
@@ -161,16 +200,19 @@ function main() {
 	glNormal.bindVertexArray(vaoImageNormal);
 
 	diffuseProg.bind(glDiffuse);
-	normalProg.bind(glNormal);
+	imgProg.bind(glNormal);
 
 	glNormal.getExtension('EXT_color_buffer_float');
 
-	preGaussFbo = create_double_fbo(glNormal, 512, 512, glNormal.RGBA16F, glNormal.RGBA, glNormal.HALF_FLOAT, glNormal.LINEAR, false);
-	sobelMaskNormalFbo = create_double_fbo(glNormal, 512, 512, glNormal.RGBA16F, glNormal.RGBA, glNormal.HALF_FLOAT, glNormal.LINEAR, false);
-	postGaussFbo = create_double_fbo(glNormal, 512, 512, glNormal.RGBA16F, glNormal.RGBA, glNormal.HALF_FLOAT, glNormal.LINEAR, false);
+	let imgFbo = create_double_fbo(glNormal, 512, 512, glNormal.RGBA16F, glNormal.RGBA, glNormal.HALF_FLOAT, glNormal.LINEAR, false);
+	let preGaussFbo = create_double_fbo(glNormal, 512, 512, glNormal.RGBA16F, glNormal.RGBA, glNormal.HALF_FLOAT, glNormal.LINEAR, false);
+	let sobelMaskNormalFbo = create_double_fbo(glNormal, 512, 512, glNormal.RGBA16F, glNormal.RGBA, glNormal.HALF_FLOAT, glNormal.LINEAR, false);
+	let postGaussFbo = create_double_fbo(glNormal, 512, 512, glNormal.RGBA16F, glNormal.RGBA, glNormal.HALF_FLOAT, glNormal.LINEAR, false);
 
 	let update = function() {		
 		if (areImagesLoaded(imgs)) {
+				imgProg.bind(glNormal);
+							
 				glNormal.clearColor(1.0, 1.0, 1.0, 1.0);
 				glDiffuse.clearColor(1.0, 1.0, 1.0, 1.0);
 				glNormal.clear(glNormal.COLOR_BUFFER_BIT);
@@ -185,9 +227,11 @@ function main() {
 			
 				glDiffuse.drawElements(glDiffuse.TRIANGLES, 6, glDiffuse.UNSIGNED_SHORT, 0);
 	
-				renderImgToFbo(glNormal, imgProg, preGaussFbo);
+				renderImgToFbo(glNormal, imgProg, preGaussFbo, texturesNormal[config.TEXTURE]);
+				//gauss(glNormal, gaussProg, preGaussFbo, config.PREGUASS);
 				sobelNormalMap(glNormal, normalProg, preGaussFbo, sobelMaskNormalFbo, config.SCALE, config.Z_HEIGHT, config.SWAP_DIRECTION);
-				renderToScreen(glNormal, normalProg, preGaussFbo);
+				//gauss(glNormal, gaussProg, sobelMaskNormalFbo, config.POSTGAUSS);
+				renderToScreen(glNormal, imgProg, sobelMaskNormalFbo);
 			}
 		animID = requestAnimationFrame(update);
 	}
@@ -200,6 +244,8 @@ function main() {
     gui.add(config, "SWAP_DIRECTION").name("Invert Normal Direction").onFinishChange(update);
     gui.add(config, "SCALE", 1, 500).name("Normal Scaling").onFinishChange(update);
 	gui.add(config, "Z_HEIGHT", 0, 1).name("Z Height").onFinishChange(update);
+	gui.add(config, "PREGAUSS", 1, 10).name("Pre-Gauss").onFinishChange(update);
+	gui.add(config, "POSTGAUSS", 1, 10).name("Post-Gauss").onFinishChange(update);
 }
 
 // Load and set up the images
@@ -273,11 +319,29 @@ function createVaoImage(gl) {
 	return vaoImage;
 }
 
+// Gauss
+function gauss(gl, prog, fbo, scale) {
+    prog.bind(gl);
+
+    gl.uniform1i(prog.uniforms.u_Image, fbo.read.attach(8));
+    gl.uniform2f(prog.uniforms.u_Texel, fbo.read.texel_x, fbo.read.texel_y);
+    gl.uniform1f(prog.uniforms.u_Half, scale);
+
+    gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+
+	gl.bindFramebuffer(gl.FRAMEBUFFER, fbo.write.fbo);
+
+	gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+
+	fbo.swap();
+}
+
 // Render to the screen
 function renderToScreen(gl, prog, fbo) {
+	prog.bind(gl);
 	gl.uniform1i(prog.uniforms.u_Image, fbo.read.attach(8));
 	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-	gl.drawElements(glNormal.TRIANGLES, 6, glNormal.UNSIGNED_SHORT, 0);
+	gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
 }
 
 /***** BASED ON HW3 *****/
@@ -296,6 +360,7 @@ function sobelNormalMap(gl, prog, ori, dst, scale, normalHeight, swap) {
 
 	gl.bindFramebuffer(gl.FRAMEBUFFER, dst.write.fbo);
 
+	ori.swap();
 	dst.swap();
 
 	gl.drawElements(glNormal.TRIANGLES, 6, glNormal.UNSIGNED_SHORT, 0);
@@ -303,18 +368,21 @@ function sobelNormalMap(gl, prog, ori, dst, scale, normalHeight, swap) {
 
 /***** BASED ON HW3 *****/
 // Sobel normal mask drawing
-function renderImgToFbo(gl, prog, fbo) {
+function renderImgToFbo(gl, prog, fbo, texture) {
     let program = prog;
     program.bind(gl);
 
+	gl.bindTexture(gl.TEXTURE_2D, texture);
+	gl.uniform1i(program.uniforms.u_Image, 0);
+	
 	gl.bindFramebuffer(gl.FRAMEBUFFER, fbo.write.fbo);
-    gl.uniform2f(program.uniforms.u_Texel, fbo.read.fbo.texel_x, fbo.read.fbo.texel_y);
+    gl.uniform2f(program.uniforms.u_Texel, fbo.write.fbo.texel_x, fbo.write.fbo.texel_y);
 	
     gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
 
-	fbo.swap();
-
 	gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+
+	fbo.swap();
 }
 
 /***** DATA STRUCTURE FROM CLASS *****/
