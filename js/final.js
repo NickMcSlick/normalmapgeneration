@@ -67,8 +67,7 @@ const fragGauss = `#version 300 es
         }		
 		
 		sum /= w_sum; // normalize weight
-		                
-	    cg_FragColor = sum; 
+		cg_FragColor = sum;
     }
 `;
 
@@ -171,8 +170,10 @@ config = {
 	SWAP_DIRECTION: false,
 	SCALE: 100,
 	Z_HEIGHT: 1.0,
-	PREGAUSS: 3.0,
-	POSTGAUSS: 3.0,
+	PREGAUSS: 1.0,
+	POSTGAUSS: 1.0,
+	PREGAUSS_FLAG: false,
+	POSTGAUSS_FLAG: false,
 }
 
 function main() {
@@ -228,9 +229,13 @@ function main() {
 				glDiffuse.drawElements(glDiffuse.TRIANGLES, 6, glDiffuse.UNSIGNED_SHORT, 0);
 	
 				renderImgToFbo(glNormal, imgProg, preGaussFbo, texturesNormal[config.TEXTURE]);
-				//gauss(glNormal, gaussProg, preGaussFbo, config.PREGUASS);
+				if (config.PREGAUSS_FLAG) {
+					gauss(glNormal, gaussProg, preGaussFbo, config.PREGUASS);
+				}
 				sobelNormalMap(glNormal, normalProg, preGaussFbo, sobelMaskNormalFbo, config.SCALE, config.Z_HEIGHT, config.SWAP_DIRECTION);
-				//gauss(glNormal, gaussProg, sobelMaskNormalFbo, config.POSTGAUSS);
+				if (config.POSTGAUSS_FLAG) {			
+					gauss(glNormal, gaussProg, sobelMaskNormalFbo, config.POSTGAUSS);	
+				}
 				renderToScreen(glNormal, imgProg, sobelMaskNormalFbo);
 			}
 		animID = requestAnimationFrame(update);
@@ -244,8 +249,10 @@ function main() {
     gui.add(config, "SWAP_DIRECTION").name("Invert Normal Direction").onFinishChange(update);
     gui.add(config, "SCALE", 1, 500).name("Normal Scaling").onFinishChange(update);
 	gui.add(config, "Z_HEIGHT", 0, 1).name("Z Height").onFinishChange(update);
-	gui.add(config, "PREGAUSS", 1, 10).name("Pre-Gauss").onFinishChange(update);
-	gui.add(config, "POSTGAUSS", 1, 10).name("Post-Gauss").onFinishChange(update);
+	gui.add(config, "PREGAUSS_FLAG").name("Pre-Gauss").onFinishChange(update);
+	gui.add(config, "POSTGAUSS_FLAG").name("Post-Gauss").onFinishChange(update);
+	gui.add(config, "PREGAUSS", 0.6, 10).name("Pre-Gauss Scale").onFinishChange(update);
+	gui.add(config, "POSTGAUSS", 0.6, 10).name("Post-Gauss Scale").onFinishChange(update);
 }
 
 // Load and set up the images
@@ -342,6 +349,7 @@ function renderToScreen(gl, prog, fbo) {
 	gl.uniform1i(prog.uniforms.u_Image, fbo.read.attach(8));
 	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 	gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+	fbo.swap();
 }
 
 /***** BASED ON HW3 *****/
