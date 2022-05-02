@@ -3,32 +3,33 @@
 // and a variation of Sobel Masking to generate a normal map
 
 // Image display vertex shader
-// Based off of HW3
 const vertexImgDisplay = `#version 300 es
-	in vec2 a_Position;	
-	out vec2 v_Coord;
+	in vec2 a_Position;   // Positions
+	out vec2 v_TexCoord;  // Texture coords
 
-	void main() {	   
-	   gl_PointSize = 1.0;
-	   gl_Position = vec4(a_Position, 0.0, 1.0);
+	void main() {
+		// Set the position
+		gl_Position = vec4(a_Position, 0.0, 1.0);
 
-	   v_Coord = a_Position * 0.5 + 0.5;
+		// Similar to HW3, I decided to convert
+		// the position coordinates into texture coordinates
+		// in order to simplify the VAO
+		v_TexCoord = a_Position * 0.5 + 0.5;
 	}
 `;
 
 // Image display fragment shader
-// Based off of HW3
 const fragImgDisplay = `#version 300 es
 	precision mediump float;
 	precision highp sampler2D;
 
-	uniform sampler2D u_Image;
-	in vec2 v_Coord;
+	uniform sampler2D u_Image; 	// Input image
+	in vec2 v_TexCoord; 	    // Input texture coordinates
+	out vec4 cg_FragColor;      // Output color
 
-	out vec4 cg_FragColor; 
-
+	// Get and display color from texture
 	void main() {
-	   cg_FragColor = texture(u_Image, v_Coord);
+	   cg_FragColor = texture(u_Image, v_TexCoord);
 	}
 `;
 
@@ -41,12 +42,12 @@ const fragGauss = `#version 300 es
     uniform vec2 u_Texel; // added by hk
     uniform sampler2D u_Image;
     uniform float u_Half; // kernel half width
-    in vec2 v_Coord;
+    in vec2 v_TexCoord;
     out vec4 cg_FragColor;
         
     void main () {
-        float x = v_Coord.x;
-        float y = v_Coord.y;
+        float x = v_TexCoord.x;
+        float y = v_TexCoord.y;
         float dx = u_Texel.x;
         float dy = u_Texel.y;        
 
@@ -77,57 +78,68 @@ const fragSobelNormalGeneration = `#version 300 es
 	precision highp float; 
     precision highp sampler2D;
 
-	// Texture coordinates from fragment shader
-    in vec2 v_Coord;
+    in vec2 v_TexCoord;            // Texture coordinates from fragment shader
 
-	// Image ID
-    uniform sampler2D u_Image;
+    uniform sampler2D u_Image; 	   // Image ID
+    uniform vec2 u_Texel; 	       // Texel lengths
+    uniform float u_Scale;   	   // The scaling for the gradient magnitude
+	uniform float u_NormalHeight;  // The height for the normal (assuming the height is constant)
+	uniform bool u_SwapDirection;  // Swap the direction of the gradient
+	uniform bool u_UseGradientMag; // Use the gradient magnitude to determine z-height
 
-	// Texel lengths
-    uniform vec2 u_Texel;
+    out vec4 cg_FragColor;         // Output color
 
-	// The scaling for the gradient magnitude
-    uniform float u_Scale;
+	// Sobel operator, which returns gradient
+	// Note that this doesn't assume a grayscale image,
+	// so it makes any textures needed grayscale in its computation
+	vec2 sobel(vec2 coord, vec2 texel) {
+		vec2 gradient = vec2(0.0);
 
-	// The height for the normal (assuming the height is constant)
-	uniform float u_NormalHeight;
+		// Get lower left corner value
+		vec3 color1 = texture(u_Image, vec2(coord.x - texel.x, coord.y - texel.y)).rgb;
+		float lowerLeft = (color1.r + color1.g + color1.b) / 3.0;
 
-	// Swap the direction of the gradient
-	uniform bool u_SwapDirection;
+		// Get left value
+		vec3 color2 = texture(u_Image, vec2(coord.x - texel.x, coord.y)).rgb;
+		float left = (color2.r + color2.g + color2.b) / 3.0;
 
-	// Use the gradient magnitude to determine z-height
-	uniform bool u_UseGradientMag;
+		// Get upper left corner value
+		vec3 color3 = texture(u_Image, vec2(coord.x - texel.x, coord.y + texel.y)).rgb;
+		float upperLeft = (color3.r + color3.g + color3.b) / 3.0;
 
-    out vec4 cg_FragColor;
-        
-    void main () {
-        float x = v_Coord.x;
-        float y = v_Coord.y;
-        float dx = u_Texel.x;
-        float dy = u_Texel.y;    
-  
-        vec2 g = vec2(0.0);
+		// Get lower right corner value
+		vec3 color4 = texture(u_Image, vec2(coord.x + texel.x, coord.y - texel.y)).rgb;
+		float lowerRight = (color4.r + color4.g + color4.b) / 3.0;
 
-        g.x = (          
-			-1.0 * texture(u_Image, vec2(x-dx, y-dy)).r +
-			-2.0 * texture(u_Image, vec2(x-dx, y)).r +
-			-1.0 * texture(u_Image, vec2(x-dx, y+dy)).r +
-			+1.0 * texture(u_Image, vec2(x+dx, y-dy)).r +
-			+2.0 * texture(u_Image, vec2(x+dx, y)).r +
-			+1.0 * texture(u_Image, vec2(x+dx, y+dy)).r		
-		); // [-4, 4] because texture returns [0, 1]		   
+		// Get right value
+		vec3 color5 = texture(u_Image, vec2(coord.x + texel.x, coord.y)).rgb;
+		float right = (color5.r + color5.g + color5.b) / 3.0;
 
-		g.y = (		
-			-1.0 * texture(u_Image, vec2(x-dx, y-dy)).r +
-			-2.0 * texture(u_Image, vec2(x,    y-dy)).r +
-			-1.0 * texture(u_Image, vec2(x+dx, y-dy)).r +
-			+1.0 * texture(u_Image, vec2(x-dx, y+dy)).r +
-			+2.0 * texture(u_Image, vec2(x,    y+dy)).r +
-			+1.0 * texture(u_Image, vec2(x+dx, y+dy)).r		
-		); // [-4, 4] because texture returns [0, 1]		   
-		
-		g.x /= 4.0; // [-1, 1]
-	    g.y /= 4.0; // [-1, 1]	
+		// Get upper right value
+		vec3 color6 = texture(u_Image, vec2(coord.x + texel.x, coord.y + texel.y)).rgb;
+		float upperRight = (color6.r + color6.g + color5.b) / 3.0;
+
+		// Get upper value
+		vec3 color7 = texture(u_Image, vec2(coord.x, coord.y + texel.y)).rgb;
+		float upper = (color7.r + color7.g + color7.b) / 3.0;
+
+		// Get lower value
+		vec3 color8 = texture(u_Image, vec2(coord.x, coord.y - texel.y)).rgb;
+		float lower = (color8.r + color8.g + color8.b) / 3.0;
+
+		gradient = vec2(
+			-lowerLeft - 2.0 * left - upperLeft + lowerRight + 2.0 * right + upperRight,
+			-lowerLeft - 2.0 * lower - lowerRight + upperLeft + 2.0 * upper + upperRight
+		);
+
+		gradient.x /= 4.0;
+		gradient.y /= 4.0;
+
+		return gradient;
+	}
+
+    void main () {   
+        vec2 g = sobel(v_TexCoord, u_Texel);
 	    
 		float mag = g.x * g.x + g.y * g.y; // [0, 2]
 	    mag /= 2.0; // [0, 1]	   	   
@@ -272,7 +284,7 @@ function main() {
     let gui = new dat.GUI( { width: 400 } );
     gui.add(config, "TEXTURE", { "Earth": 0, "Mars": 1, "Wood": 2 }).name("Texture Pair").onFinishChange(update);
     gui.add(config, "SWAP_DIRECTION").name("Invert Normal Direction").onFinishChange(update);
-    gui.add(config, "SCALE", 1, 200).name("Normal Scaling").onFinishChange(update);
+    gui.add(config, "SCALE", 1, 300).name("Normal Scaling").onFinishChange(update);
 	gui.add(config, "USE_MAG_HEIGHT").name("Use magnitude for z-height").onFinishChange(update);
 	gui.add(config, "Z_HEIGHT", 0, 1).name("Z Height").onFinishChange(update);
 	gui.add(config, "PREGAUSS_FLAG").name("Pre-Gauss").onFinishChange(update);
