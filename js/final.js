@@ -51,7 +51,7 @@ const fragGauss = `#version 300 es
         float dx = u_Texel.x;
         float dy = u_Texel.y;        
 
-		float sigma = u_Half; 
+	float sigma = u_Half; 
         float twoSigma2 = 2.0 * sigma * sigma;
         vec4 sum = vec4(0.0, 0.0, 0.0, 0.0);
         float w_sum = 0.0;
@@ -75,7 +75,7 @@ const fragGauss = `#version 300 es
 // NORMAL MAP GENERATION USING SOBEL MASKING
 // This is the major part of the project, attempting to tweak the normal maps
 const fragSobelNormalGeneration = `#version 300 es
-	precision highp float; 
+    precision highp float; 
     precision highp sampler2D;
 
     in vec2 v_TexCoord;            // Texture coordinates from fragment shader
@@ -83,9 +83,9 @@ const fragSobelNormalGeneration = `#version 300 es
     uniform sampler2D u_Image; 	   // Image ID
     uniform vec2 u_Texel; 	       // Texel lengths
     uniform float u_Scale;   	   // The scaling for the gradient magnitude
-	uniform float u_NormalHeight;  // The height for the normal (assuming the height is constant)
-	uniform bool u_SwapDirection;  // Swap the direction of the gradient
-	uniform bool u_UseGradientMag; // Use the gradient magnitude to determine z-height
+    uniform float u_NormalHeight;  // The height for the normal (assuming the height is constant)
+    uniform bool u_SwapDirection;  // Swap the direction of the gradient
+    uniform bool u_UseGradientMag; // Use the gradient magnitude to determine z-height
 
     out vec4 cg_FragColor;         // Output color
 
@@ -141,8 +141,8 @@ const fragSobelNormalGeneration = `#version 300 es
     void main () {   
         vec2 g = sobel(v_TexCoord, u_Texel);
 	    
-		float mag = g.x * g.x + g.y * g.y; // [0, 2]
-	    mag /= 2.0; // [0, 1]	   	   
+	float mag = g.x * g.x + g.y * g.y; // [0, 2]
+	mag /= 2.0; // [0, 1]	   	   
 
         // if zero gradient, make it a vertical tangent vector
         if (g.x == 0.0 && g.y == 0.0) g = vec2(1.0, 0.0); 
