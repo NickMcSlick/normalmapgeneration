@@ -54,20 +54,20 @@ const fragGauss = `#version 300 es
         float twoSigma2 = 2.0 * sigma * sigma;
         vec4 sum = vec4(0.0, 0.0, 0.0, 0.0);
         float w_sum = 0.0;
-        	
-        for (float j = -u_Half; j <= u_Half; j+=1.0) {	
+
+	    for (float j = -u_Half; j <= u_Half; j+=1.0) {	
 			for (float i = -u_Half; i <= u_Half; i+=1.0) {	
-			    float d = distance(vec2(0.0), vec2(i, j));
-			    if (d > u_Half) continue;		
+				float d = distance(vec2(0.0), vec2(i, j));
+				if (d > u_Half) continue;		
 				float weight = exp(-d * d / twoSigma2);
 				vec4 st = texture(u_Image, vec2(x+dx*i, y+dy*j));
 				sum += weight * st; // sum is float4
 				w_sum += weight;
 			}
-        }		
+		}
 		
 		sum /= w_sum; // normalize weight
-		cg_FragColor = sum;
+		cg_FragColor = sum;	
     }
 `;
 
@@ -76,13 +76,27 @@ const fragGauss = `#version 300 es
 const fragSobelNormalGeneration = `#version 300 es
 	precision highp float; 
     precision highp sampler2D;
-    
+
+	// Texture coordinates from fragment shader
     in vec2 v_Coord;
+
+	// Image ID
     uniform sampler2D u_Image;
-    uniform vec2 u_Texel; // added by hk
+
+	// Texel lengths
+    uniform vec2 u_Texel;
+
+	// The scaling for the gradient magnitude
     uniform float u_Scale;
+
+	// The height for the normal (assuming the height is constant)
 	uniform float u_NormalHeight;
+
+	// Swap the direction of the gradient
 	uniform bool u_SwapDirection;
+
+	// Use the gradient magnitude to determine z-height
+	uniform bool u_UseGradientMag;
 
     out vec4 cg_FragColor;
         
@@ -133,11 +147,21 @@ const fragSobelNormalGeneration = `#version 300 es
         /////////////////////////////////////////
         // enhance gradient magnitude
 	    mag = tanh(u_Scale * mag);
-	    /////////////////////////////////////////
+	    /////////////////////////////////////////	
 
-	    //cg_FragColor = vec4(mag, mag, mag, 1.0);
-	
-		cg_FragColor = mix(vec4(g, u_NormalHeight, 1.0), vec4(0.5, 0.5, 1.0, 1.0), 1.0 - mag);	
+	    // To help avoid noise, the mix function is used
+		// We use 1.0 - mag as the mixing factor, and we mix between
+		// neutral and the gradient (with some assumptions made for z)
+		// This way, only very strong gradients create drastic normals
+
+		// It should be noted that two z-heights were used here
+		// Either we can assume that all the normals have a constant height, which produces a relatively nice map
+		// Or, we can use the magnitude to assume a height - unfortunately this produces a worse result
+		if (u_UseGradientMag) {
+			cg_FragColor = mix(vec4(g, (0.2 + mag) / 1.2, 1.0), vec4(0.5, 0.5, 1.0, 1.0), 1.0 - mag);	
+		} else {
+			cg_FragColor = mix(vec4(g, u_NormalHeight, 1.0), vec4(0.5, 0.5, 1.0, 1.0), 1.0 - mag);	
+		}
     }       
 `;
 
@@ -169,6 +193,7 @@ config = {
 	TEXTURE: 0,
 	SWAP_DIRECTION: false,
 	SCALE: 100,
+	USE_MAG_HEIGHT: false,
 	Z_HEIGHT: 1.0,
 	PREGAUSS: 1.0,
 	POSTGAUSS: 1.0,
@@ -230,9 +255,9 @@ function main() {
 	
 				renderImgToFbo(glNormal, imgProg, preGaussFbo, texturesNormal[config.TEXTURE]);
 				if (config.PREGAUSS_FLAG) {
-					gauss(glNormal, gaussProg, preGaussFbo, config.PREGUASS);
+					gauss(glNormal, gaussProg, preGaussFbo, config.PREGAUSS);
 				}
-				sobelNormalMap(glNormal, normalProg, preGaussFbo, sobelMaskNormalFbo, config.SCALE, config.Z_HEIGHT, config.SWAP_DIRECTION);
+				sobelNormalMap(glNormal, normalProg, preGaussFbo, sobelMaskNormalFbo, config.SCALE, config.Z_HEIGHT, config.SWAP_DIRECTION, config.USE_MAG_HEIGHT);
 				if (config.POSTGAUSS_FLAG) {			
 					gauss(glNormal, gaussProg, sobelMaskNormalFbo, config.POSTGAUSS);	
 				}
@@ -244,10 +269,11 @@ function main() {
 	update();
 
 	// Add dat.GUI elements
-    let gui = new dat.GUI();
+    let gui = new dat.GUI( { width: 400 } );
     gui.add(config, "TEXTURE", { "Earth": 0, "Mars": 1, "Wood": 2 }).name("Texture Pair").onFinishChange(update);
     gui.add(config, "SWAP_DIRECTION").name("Invert Normal Direction").onFinishChange(update);
-    gui.add(config, "SCALE", 1, 500).name("Normal Scaling").onFinishChange(update);
+    gui.add(config, "SCALE", 1, 200).name("Normal Scaling").onFinishChange(update);
+	gui.add(config, "USE_MAG_HEIGHT").name("Use magnitude for z-height").onFinishChange(update);
 	gui.add(config, "Z_HEIGHT", 0, 1).name("Z Height").onFinishChange(update);
 	gui.add(config, "PREGAUSS_FLAG").name("Pre-Gauss").onFinishChange(update);
 	gui.add(config, "POSTGAUSS_FLAG").name("Post-Gauss").onFinishChange(update);
@@ -354,7 +380,7 @@ function renderToScreen(gl, prog, fbo) {
 
 /***** BASED ON HW3 *****/
 // Sobel normal mask drawing
-function sobelNormalMap(gl, prog, ori, dst, scale, normalHeight, swap) {
+function sobelNormalMap(gl, prog, ori, dst, scale, normalHeight, swap, useMagHeight) {
     let program = prog;
     program.bind(gl);
 
@@ -363,6 +389,7 @@ function sobelNormalMap(gl, prog, ori, dst, scale, normalHeight, swap) {
     gl.uniform1f(program.uniforms.u_Scale, scale);
 	gl.uniform1f(program.uniforms.u_NormalHeight, normalHeight);
 	gl.uniform1f(program.uniforms.u_SwapDirection, swap);
+	gl.uniform1f(program.uniforms.u_UseGradientMag, useMagHeight);
 
     gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
 
