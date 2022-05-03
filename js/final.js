@@ -221,8 +221,8 @@ let animID = 0;
 config = {
 	TEXTURE: 0,
 	SWAP_DIRECTION: false,
-	SCALE: 100,
-	Z_HEIGHT: 1.0,
+	SCALE: 50,
+	Z_HEIGHT: 0.8,
 	PREGAUSS: 0.0,
 	POSTGAUSS: 0.0,
 }
@@ -356,9 +356,9 @@ function main() {
 	// Add dat.GUI elements
     let gui = new dat.GUI( { width: 230 } );
     gui.add(config, "TEXTURE", { "Earth": 0, "Mars": 1, "Wood": 2 , "Rock": 3, "Plastic": 4, "Metal": 5, "Fabric": 6 }).name("Texture Pair").onFinishChange(update);
-    gui.add(config, "SWAP_DIRECTION").name("Invert Normal Direction").onFinishChange(update);
+    gui.add(config, "SWAP_DIRECTION").name("Reverse Normal").onFinishChange(update);
     gui.add(config, "SCALE", 1, 300).name("Normal Intensity").onFinishChange(update);
-	gui.add(config, "Z_HEIGHT", 0, 1).name("Z Height").onFinishChange(update);
+	gui.add(config, "Z_HEIGHT", 0, 1).name("Z-Height").onFinishChange(update);
 	gui.add(config, "PREGAUSS", 0.0, 10).name("Pre-Gauss").onFinishChange(update);
 	gui.add(config, "POSTGAUSS", 0.0, 10).name("Post-Gauss").onFinishChange(update);
 }
