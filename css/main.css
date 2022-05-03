@@ -1,0 +1,26 @@
+/* CS6410 Final Project Bryce Paubel 5/3/22 */
+/* This is a simple stylesheet for the project */
+
+#wrapper {
+	padding-top: 5em;
+	display: flex; 
+	flex-direction: row; 
+	justify-content: center;
+	align-items: center;
+}
+
+#diffuseCanvas {
+	padding: 0.5em;
+	width: 512px;
+	height: 512px;
+}
+
+#normalCanvas {
+	padding: 0.5em;
+	width: 512px;
+	height: 512px;
+}
+
+#linkDiv {
+	text-align: center;
+}

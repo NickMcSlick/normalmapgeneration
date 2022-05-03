@@ -311,13 +311,13 @@ function main() {
 	update();
 
 	// Add dat.GUI elements
-    let gui = new dat.GUI( { width: 400 } );
+    let gui = new dat.GUI( { width: 235 } );
     gui.add(config, "TEXTURE", { "Earth": 0, "Mars": 1, "Wood": 2 }).name("Texture Pair").onFinishChange(update);
     gui.add(config, "SWAP_DIRECTION").name("Invert Normal Direction").onFinishChange(update);
     gui.add(config, "SCALE", 1, 300).name("Normal Intensity").onFinishChange(update);
 	gui.add(config, "Z_HEIGHT", 0, 1).name("Z Height").onFinishChange(update);
-	gui.add(config, "PREGAUSS", 0.0, 10).name("Pre-Gauss Scale").onFinishChange(update);
-	gui.add(config, "POSTGAUSS", 0.0, 10).name("Post-Gauss Scale").onFinishChange(update);
+	gui.add(config, "PREGAUSS", 0.0, 10).name("Pre-Gauss").onFinishChange(update);
+	gui.add(config, "POSTGAUSS", 0.0, 10).name("Post-Gauss").onFinishChange(update);
 }
 
 // Load and set up the images
@@ -401,9 +401,9 @@ function createImageVao(gl) {
 
 	// Create and bind the element array buffer
 	let elementBuffer = gl.createBuffer();
-	let elementArray = [0, 1, 2, 0, 2, 3];
+	let elements = [0, 1, 2, 0, 2, 3];
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.createBuffer());
-    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(elementArray), gl.STATIC_DRAW);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(elements), gl.STATIC_DRAW);
 
 	// Unbind the VAO
     gl.bindVertexArray(null);
