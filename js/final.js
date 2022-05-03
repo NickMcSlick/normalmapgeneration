@@ -209,7 +209,7 @@ config = {
 	TEXTURE: 0,
 	SWAP_DIRECTION: false,
 	SCALE: 100,
-	Z_HEIGHT: 10.0,
+	Z_HEIGHT: 1.0,
 	PREGAUSS: 0.0,
 	POSTGAUSS: 0.0,
 }
@@ -217,6 +217,19 @@ config = {
 
 // Main program
 function main() {
+
+	// Flags for image downloads
+	let downloadDiffuseFlag = false;
+	let downloadNormalFlag = false;
+
+	// Get the download buttons and set their onclicks to change their respective flags
+	document.getElementById("downloadDiffuse").onclick = function() {
+		downloadDiffuseFlag = true;
+	}
+	document.getElementById("downloadNormal").onclick = function() {
+		downloadNormalFlag = true;
+	}
+
 	// NOTE THAT THERE WILL BE TWO CONTEXTS HERE
 	// ONE FOR THE DIFFUSE DRAWING, AND ONE FOR THE NORMAL MAP DRAWING
 	
@@ -301,6 +314,23 @@ function main() {
 
 				// Draw the result to the screen
 				renderToScreen(glNormal, imgProg, sobelMaskNormalFbo);
+
+				// If the user wants to download the normal of the diffuse, download it
+				if (downloadDiffuseFlag) {
+					downloadDiffuseFlag = false;
+					let tempLink = document.createElement("a");
+					tempLink.setAttribute("download", "diffuse");
+					tempLink.setAttribute("href", diffuseCanvas.toDataURL());
+					tempLink.click();
+				}
+
+				if (downloadNormalFlag) {
+					downloadNormalFlag = false;
+					let tempLink = document.createElement("a");
+					tempLink.setAttribute("download", "normal");
+					tempLink.setAttribute("href", normalCanvas.toDataURL());
+					tempLink.click();
+				}
 			}
 
 		// Request another animation frame
@@ -311,7 +341,7 @@ function main() {
 	update();
 
 	// Add dat.GUI elements
-    let gui = new dat.GUI( { width: 235 } );
+    let gui = new dat.GUI( { width: 230 } );
     gui.add(config, "TEXTURE", { "Earth": 0, "Mars": 1, "Wood": 2 }).name("Texture Pair").onFinishChange(update);
     gui.add(config, "SWAP_DIRECTION").name("Invert Normal Direction").onFinishChange(update);
     gui.add(config, "SCALE", 1, 300).name("Normal Intensity").onFinishChange(update);
