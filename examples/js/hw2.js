@@ -150,7 +150,11 @@ let g_prog = []; // shader programs
 // Texture pair array
 let texPair = [{ diffuse: "earth_diffuse.png", normal: "earth_normal.png"},
                { diffuse: "mars_diffuse.png", normal: "mars_normal.png"}, 
-               { diffuse: "wood_diffuse.png", normal: "wood_normal.png"}];
+               { diffuse: "wood_diffuse.png", normal: "wood_normal.png"},
+               { diffuse: "rock_diffuse.png", normal: "rock_normal.png"},
+               { diffuse: "plastic_diffuse.png", normal: "plastic_normal.png" },
+               { diffuse: "metal_diffuse.png", normal: "metal_normal.png" },
+               { diffuse: "fabric_diffuse.png", normal: "fabric_normal.png" }];
 
 function update_bind() {
     g_prog[config.SHADER].bind(); // switch to different shader program
@@ -297,7 +301,7 @@ function main () {
     /***** MAJOR EDITS *****/
     // Added dat.GUI elements
     let gui = new dat.GUI();
-    gui.add(config, "TEXTURE_PAIR", { "Earth": 0, "Mars": 1, "Wood": 2 }).name("Texture Pair").onFinishChange(render);
+    gui.add(config, "TEXTURE_PAIR", { "Earth": 0, "Mars": 1, "Wood": 2 , "Rock": 3, "Plastic": 4, "Metal": 5, "Fabric": 6 }).name("Texture Pair").onFinishChange(render);
     gui.add(config, "TEXTURE_MAP").name("Texture Map?").onFinishChange(render);
     gui.add(config, "NORMAL_MAP").name("Normal Map?").onFinishChange(render);
     
@@ -414,7 +418,7 @@ function draw_obj (program, vp_mat) {
     /***** MAJOR EDIT *****/
     // Calculate the images needed
     let textureChoice = parseInt(config.TEXTURE_PAIR);
-    let normalChoice = parseInt(config.TEXTURE_PAIR) + 3;
+    let normalChoice = parseInt(config.TEXTURE_PAIR) + texPair.length;
 
     console.log(normalChoice);
     console.log(g_image[normalChoice]);

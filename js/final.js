@@ -2,6 +2,11 @@
 // This project takes in multiple local images and uses FBOs
 // and a variation of Sobel Masking to generate a normal map
 
+// This algorithm works particularly well for images that have few colors
+// For example, the wood texture works quite well
+// It is of course not ideal, since it isn't a 'proper' way to generate normal maps
+// However, it does work, and in many cases it works well
+
 // Image display vertex shader
 const vertexImgDisplay = `#version 300 es
 	in vec2 a_Position;   // Positions
@@ -186,12 +191,20 @@ const fragSobelNormalGeneration = `#version 300 es
 let imgUrls = [
 	"../img/earth.jpg",
 	"../img/mars.jpg",
-	"../img/wood.jpg"
+	"../img/wood.jpg",
+	"../img/rock.jpg",
+	"../img/plastic.jpg",
+	"../img/metal.jpg",
+	"../img/fabric.jpg"
 ]
 
-// Holds the image objects - note that they have they have 'ready: false,'
-// Which is done to let the program know that each image is not ready
-let imgs = [ { ready: false }, { ready: false }, { ready: false }];
+// Holds the image objects
+let imgs = [];
+
+// For as many URLs as we have, insert objects that are not ready
+for (let i = 0; i < imgUrls.length; i++) {
+	imgs.push( { ready: false } );
+}
 
 // The texture objects used for the diffuse and normal maps
 let texturesDiffuse = [];
@@ -342,7 +355,7 @@ function main() {
 
 	// Add dat.GUI elements
     let gui = new dat.GUI( { width: 230 } );
-    gui.add(config, "TEXTURE", { "Earth": 0, "Mars": 1, "Wood": 2 }).name("Texture Pair").onFinishChange(update);
+    gui.add(config, "TEXTURE", { "Earth": 0, "Mars": 1, "Wood": 2 , "Rock": 3, "Plastic": 4, "Metal": 5, "Fabric": 6 }).name("Texture Pair").onFinishChange(update);
     gui.add(config, "SWAP_DIRECTION").name("Invert Normal Direction").onFinishChange(update);
     gui.add(config, "SCALE", 1, 300).name("Normal Intensity").onFinishChange(update);
 	gui.add(config, "Z_HEIGHT", 0, 1).name("Z Height").onFinishChange(update);
@@ -527,6 +540,8 @@ function renderImgToFbo(gl, prog, fbo, texture) {
 	fbo.swap();
 }
 
+/***** WITHIN MY FINAL PROPOSAL I DISCUSSED USING THESE DATA STRUCTURES AND CODE *****/
+
 /***** DATA STRUCTURE FROM CLASS *****/
 class GLProgram {
     constructor (vertex_shader, frag_shader, gl) {
@@ -567,7 +582,6 @@ function cg_init_shaders(gl, vshader, fshader) {
 }
 
 /***** FBOS FROM CLASS *****/
-/***** WITHIN MY FINAL PROPOSAL I DISCUSSED USING THESE DATA STRUCTURES *****/
 // When attaching a texture to a framebuffer, all rendering commands will 
 // write to the texture as if it was a normal color/depth or stencil buffer.
 // The advantage of using textures is that the result of all rendering operations

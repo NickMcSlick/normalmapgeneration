@@ -5,6 +5,7 @@
 
 /* basic formatting for the whole page */
 html, body {
+	font-family: "Courier New";
 	width: 100%
 	height 100%
 	overflow: hidden;
