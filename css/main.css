@@ -1,8 +1,15 @@
 /* CS6410 Final Project Bryce Paubel 5/3/22 */
 /* This is a simple stylesheet for the project */
 
+body {
+	font-family: "Courier New";
+}
+
+h1 {
+	text-align: center;
+}
+
 #wrapper {
-	padding-top: 5em;
 	display: flex; 
 	flex-direction: row; 
 	justify-content: center;
@@ -10,15 +17,17 @@
 }
 
 #diffuseCanvas {
-	padding: 0.5em;
+	margin: 0.5em;
 	width: 512px;
 	height: 512px;
+	box-shadow: 0px 0px 15px 0px;
 }
 
 #normalCanvas {
-	padding: 0.5em;
+	margin: 0.5em;
 	width: 512px;
 	height: 512px;
+	box-shadow: 0px 0px 15px 0px;
 }
 
 #linkDiv {
@@ -35,9 +44,11 @@
 }
 
 #downloadDiffuse {
+	font-family: "Courier New";
 	margin-right: 200px;
 }
 
 #downloadNormal {
+	font-family: "Courier New";
 	margin-left: 200px;
 }
