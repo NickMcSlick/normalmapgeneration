@@ -72,8 +72,13 @@ const fragGauss = `#version 300 es
     }
 `;
 
-// NORMAL MAP GENERATION USING SOBEL MASKING
-// This is the major part of the project, attempting to tweak the normal maps
+// Normal map generator using sobel masking
+
+// This is the major part of the project
+// It essentially takes the ideas of our sobel mask shader from HW3
+// and then applies them to normal mapping - there are some similar operations
+// from HW3, like normalizing values (which is necessary) but there are major
+// needed to get proper normals
 const fragSobelNormalGeneration = `#version 300 es
 	precision highp float; 
     precision highp sampler2D;
@@ -126,6 +131,7 @@ const fragSobelNormalGeneration = `#version 300 es
 		vec3 color8 = texture(u_Image, vec2(coord.x, coord.y - texel.y)).rgb;
 		float lower = (color8.r + color8.g + color8.b) / 3.0;
 
+		// Compute the sobel gradient
 		gradient = vec2(
 			-lowerLeft - 2.0 * left - upperLeft + lowerRight + 2.0 * right + upperRight,
 			-lowerLeft - 2.0 * lower - lowerRight + upperLeft + 2.0 * upper + upperRight
@@ -183,11 +189,11 @@ let imgUrls = [
 	"../img/wood.jpg"
 ]
 
-// Will hold the image and texture objects
-// Note that there are placeholder ready attributes
-// This is done so that even if an image is not placed on this image,
-// the progam is still aware that the image is not ready
+// Holds the image objects - note that they have they have 'ready: false,'
+// Which is done to let the program know that each image is not ready
 let imgs = [ { ready: false }, { ready: false }, { ready: false }];
+
+// The texture objects used for the diffuse and normal maps
 let texturesDiffuse = [];
 let texturesNormal = [];
 
@@ -198,6 +204,7 @@ let diffuseProg, normalProg;
 let vaoImageDiffuse, vaoImageNormal;
 let animID = 0;
 
+// Config object
 config = {
 	TEXTURE: 0,
 	SWAP_DIRECTION: false,
@@ -205,72 +212,99 @@ config = {
 	Z_HEIGHT: 10.0,
 	PREGAUSS: 0.0,
 	POSTGAUSS: 0.0,
-	PREGAUSS_FLAG: false,
-	POSTGAUSS_FLAG: false,
 }
 
+
+// Main program
 function main() {
+	// NOTE THAT THERE WILL BE TWO CONTEXTS HERE
+	// ONE FOR THE DIFFUSE DRAWING, AND ONE FOR THE NORMAL MAP DRAWING
+	
+	// Get canvas elements
 	diffuseCanvas = document.getElementById("diffuseCanvas");
 	normalCanvas = document.getElementById("normalCanvas");
 	
 	// Height here is hardcoded, just so nice texture images are sized
+	// This could be changed - however, it is done for both aesthetics
+	// and ease of FBO generation
 	diffuseCanvas.width = normalCanvas.width = 512;
 	diffuseCanvas.height = normalCanvas.height = 512;
 
+	// Get context for each element
 	glDiffuse = diffuseCanvas.getContext("webgl2");
 	glNormal = normalCanvas.getContext("webgl2");
 
+	// Load and setup each image for both contexts
 	loadAndSetupImages(imgUrls, glDiffuse, glNormal);
 
+	// Set up programs using the GLProgram data structure from class
 	diffuseProg = new GLProgram(vertexImgDisplay, fragImgDisplay, glDiffuse);
 	imgProg = new GLProgram(vertexImgDisplay, fragImgDisplay, glNormal);
 	normalProg = new GLProgram(vertexImgDisplay, fragSobelNormalGeneration, glNormal);
 	gaussProg = new GLProgram(vertexImgDisplay, fragGauss, glNormal);
 
+	// Create VAOs for the image drawing
 	vaoImageDiffuse = createImageVao(glDiffuse);
 	vaoImageNormal = createImageVao(glNormal);
 
+	// Bind the VAOs (note that these stay bound, since we are doing image processing)
 	glDiffuse.bindVertexArray(vaoImageDiffuse);
 	glNormal.bindVertexArray(vaoImageNormal);
 
-	diffuseProg.bind(glDiffuse);
-	imgProg.bind(glNormal);
-
+	// Quick extension needed for FBO
 	glNormal.getExtension('EXT_color_buffer_float');
 
+	// Create double FBOs using the data structures from class
 	let imgFbo = create_double_fbo(glNormal, 512, 512, glNormal.RGBA16F, glNormal.RGBA, glNormal.HALF_FLOAT, glNormal.LINEAR, false);
-	let preGaussFbo = create_double_fbo(glNormal, 512, 512, glNormal.RGBA16F, glNormal.RGBA, glNormal.HALF_FLOAT, glNormal.LINEAR, false);
 	let sobelMaskNormalFbo = create_double_fbo(glNormal, 512, 512, glNormal.RGBA16F, glNormal.RGBA, glNormal.HALF_FLOAT, glNormal.LINEAR, false);
-	let postGaussFbo = create_double_fbo(glNormal, 512, 512, glNormal.RGBA16F, glNormal.RGBA, glNormal.HALF_FLOAT, glNormal.LINEAR, false);
 
-	let update = function() {		
+	// The update function
+	let update = function() {	
+		// Wait until images are loaded
 		if (areImagesLoaded(imgs)) {
+				// Bind the initial programs
+				diffuseProg.bind(glDiffuse);
 				imgProg.bind(glNormal);
-							
+
+				// Clear the canvases
 				glNormal.clearColor(1.0, 1.0, 1.0, 1.0);
-				glDiffuse.clearColor(1.0, 1.0, 1.0, 1.0);
 				glNormal.clear(glNormal.COLOR_BUFFER_BIT);
+				glDiffuse.clearColor(1.0, 1.0, 1.0, 1.0);
 				glDiffuse.clear(glDiffuse.COLOR_BUFFER_BIT);
-				cancelAnimationFrame(animID);
+
+				// Set each active texture to the appropriate texture
 				glDiffuse.activeTexture(glDiffuse.TEXTURE0);
 				glDiffuse.bindTexture(glDiffuse.TEXTURE_2D, texturesDiffuse[config.TEXTURE]);
 				glDiffuse.uniform1i(diffuseProg.u_Image, 0);
 				glNormal.activeTexture(glNormal.TEXTURE0);
 				glNormal.bindTexture(glNormal.TEXTURE_2D, texturesNormal[config.TEXTURE]);
 				glNormal.uniform1i(normalProg.u_Image, 0);
-			
+
+				// Draw the diffuse map
 				glDiffuse.drawElements(glDiffuse.TRIANGLES, 6, glDiffuse.UNSIGNED_SHORT, 0);
-	
-				renderImgToFbo(glNormal, imgProg, preGaussFbo, texturesNormal[config.TEXTURE]);
+
+				// Draw the texture to an FBO
+				renderImgToFbo(glNormal, imgProg, imgFbo, texturesNormal[config.TEXTURE]);
+
+				// If the Gauss value is appropriate, process the FBO with Guassian blurring
 				if (config.PREGAUSS > 0.6) {
-					gauss(glNormal, gaussProg, preGaussFbo, config.PREGAUSS);
+					gauss(glNormal, gaussProg, imgFbo, config.PREGAUSS);
 				}
-				sobelNormalMap(glNormal, normalProg, preGaussFbo, sobelMaskNormalFbo, config.SCALE, config.Z_HEIGHT, config.SWAP_DIRECTION, config.USE_MAG_HEIGHT);
+
+				// Generate the normal map using sobel masking
+				sobelNormalMap(glNormal, normalProg, imgFbo, sobelMaskNormalFbo, config.SCALE, config.Z_HEIGHT, config.SWAP_DIRECTION, config.USE_MAG_HEIGHT);
+
+				// If the Gauss value is appropriate, process the FBO with Guassian blurring
 				if (config.POSTGAUSS > 0.6) {			
 					gauss(glNormal, gaussProg, sobelMaskNormalFbo, config.POSTGAUSS);	
 				}
+
+				// Draw the result to the screen
 				renderToScreen(glNormal, imgProg, sobelMaskNormalFbo);
 			}
+
+		// Request another animation frame
+		cancelAnimationFrame(animID);
 		animID = requestAnimationFrame(update);
 	}
 
@@ -289,18 +323,24 @@ function main() {
 // Load and set up the images
 function loadAndSetupImages(imageUrls, gl1, gl2) {
 	for (let i = 0; i < imageUrls.length; i++) {
+		// Create a new image
 		let img = new Image();
-		img.ready = false;
+		img.ready = false;      // Image is not ready
 		img.src = imageUrls[i];
-		img.width = 512;
-		img.height = 512;
+		img.width = 512;        // Setting up the images to be the same height as the FBO
+		img.height = 512;       // Setting up the images to be the same height as the FBO
 		img.crossOrigin = "";
+
+		
 		img.onload = function() {
 			// Set up the images for first context
+			let texture1 = gl1.createTexture();
+			
+			// Store the texture object
+			texturesDiffuse[i] = texture1
+
 			gl1.pixelStorei(gl1.UNPACK_FLIP_Y_WEBGL, 1);
 			gl1.activeTexture(gl1.TEXTURE0 + i);
-			let texture1 = gl1.createTexture();
-			texturesDiffuse[i] = texture1;
 			gl1.bindTexture(gl1.TEXTURE_2D, texture1);
 			gl1.texParameteri(gl1.TEXTURE_2D, gl1.TEXTURE_WRAP_S, gl1.CLAMP_TO_EDGE);
 			gl1.texParameteri(gl1.TEXTURE_2D, gl1.TEXTURE_WRAP_T, gl1.CLAMP_TO_EDGE);
@@ -310,7 +350,10 @@ function loadAndSetupImages(imageUrls, gl1, gl2) {
 			
 			// Set up the images for second context
 			let texture2 = gl2.createTexture();
+
+			// Store the texture object
 			texturesNormal[i] = texture2;
+			
 			gl2.pixelStorei(gl2.UNPACK_FLIP_Y_WEBGL, 1);
 			gl2.activeTexture(gl2.TEXTURE0 + i);
 			gl2.bindTexture(gl2.TEXTURE_2D, texture2);
@@ -321,8 +364,11 @@ function loadAndSetupImages(imageUrls, gl1, gl2) {
 			gl2.texImage2D(gl2.TEXTURE_2D, 0, gl2.RGBA, gl2.RGBA, gl2.UNSIGNED_BYTE, img);
 
 			console.log("loaded image " + i);
+			
 			// New attribute for the image to determine if it has been loaded
 			img.ready = true;
+
+			// Store the image object in the images array
 			imgs[i] = img;
 		}
 		
