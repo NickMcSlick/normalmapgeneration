@@ -7,6 +7,8 @@
 // It is of course not ideal, since it isn't a 'proper' way to generate normal maps
 // However, it does work, and in many cases it works well
 
+/* NOTE - many of these shaders are based off of HW3, since this normal mapping algorithm is similar to our edge detector */
+
 // Image display vertex shader
 const vertexImgDisplay = `#version 300 es
 	in vec2 a_Position;   // Positions
@@ -428,6 +430,8 @@ function areImagesLoaded(images) {
 	return true;
 }
 
+/* For my FBO and VAO functions, I tried to follow similar standards to HW3 */
+
 // Create a VAO specifically for images
 function createImageVao(gl) {
 	// Create a VAO
@@ -540,7 +544,7 @@ function renderImgToFbo(gl, prog, fbo, texture) {
 	fbo.swap();
 }
 
-/***** WITHIN MY FINAL PROPOSAL I DISCUSSED USING THESE DATA STRUCTURES AND CODE *****/
+/***** WITHIN MY FINAL PROPOSAL I DISCUSSED USING THESE DATA STRUCTURES AND CODE FROM HW3 *****/
 
 /***** DATA STRUCTURE FROM CLASS *****/
 class GLProgram {
