@@ -204,6 +204,8 @@ let imgUrls = [
 let imgs = [];
 
 // For as many URLs as we have, insert objects that are not ready
+// These dummy objects let the program know that the images aren't loaded,
+// even if they haven't been inserted yet
 for (let i = 0; i < imgUrls.length; i++) {
 	imgs.push( { ready: false } );
 }
@@ -212,7 +214,7 @@ for (let i = 0; i < imgUrls.length; i++) {
 let texturesDiffuse = [];
 let texturesNormal = [];
 
-// Canvas variables, contexts, programs, and VAOs
+// Canvas variables, contexts, programs, VAOs, and animation ID
 let diffuseCanvas, normalCanvas;
 let glDiffuse, glNormal;
 let diffuseProg, normalProg;
@@ -252,9 +254,9 @@ function main() {
 	diffuseCanvas = document.getElementById("diffuseCanvas");
 	normalCanvas = document.getElementById("normalCanvas");
 	
-	// Height here is hardcoded, just so nice texture images are sized
+	// Height here is hardcoded, just so that the texture sizes are uniform
 	// This could be changed - however, it is done for both aesthetics
-	// and ease of FBO generation
+	// and ease of FBO creation
 	diffuseCanvas.width = normalCanvas.width = 512;
 	diffuseCanvas.height = normalCanvas.height = 512;
 
