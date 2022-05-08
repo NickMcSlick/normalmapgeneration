@@ -203,13 +203,6 @@ let imgUrls = [
 // Holds the image objects
 let imgs = [];
 
-// For as many URLs as we have, insert objects that are not ready
-// These dummy objects let the program know that the images aren't loaded,
-// even if they haven't been inserted yet
-for (let i = 0; i < imgUrls.length; i++) {
-	imgs.push( { ready: false } );
-}
-
 // The texture objects used for the diffuse and normal maps
 let texturesDiffuse = [];
 let texturesNormal = [];
@@ -263,6 +256,13 @@ function main() {
 	// Get context for each element
 	glDiffuse = diffuseCanvas.getContext("webgl2");
 	glNormal = normalCanvas.getContext("webgl2");
+
+	// For as many URLs as we have, insert objects that are not ready
+	// These dummy objects let the program know that the images aren't loaded,
+	// even if they haven't been inserted yet
+	for (let i = 0; i < imgUrls.length; i++) {
+		imgs.push( { ready: false } );
+	}
 
 	// Load and setup each image for both contexts
 	loadAndSetupImages(imgUrls, glDiffuse, glNormal);
@@ -433,6 +433,7 @@ function areImagesLoaded(images) {
 }
 
 /* For my FBO and VAO functions, I tried to follow similar standards to HW3 */
+/* VERY IMPORTANT NOTE - THESE DRAWING FUNCTIONS ASSUME DOUBLE FBOS */
 
 // Create a VAO specifically for images
 function createImageVao(gl) {
@@ -461,7 +462,7 @@ function createImageVao(gl) {
 	return vaoImage;
 }
 
-// Gaussian blurring
+// Gaussian blurring - based on HW3
 function gauss(gl, prog, fbo, scale) {
 	// Bind the program to the context
     prog.bind(gl);
