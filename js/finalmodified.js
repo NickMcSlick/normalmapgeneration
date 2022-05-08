@@ -161,13 +161,13 @@ const fragSobelNormalGeneration = `#version 300 es
 
 // Image urls
 let imgUrls = [
-	"../img/earth.jpg",
-	"../img/mars.jpg",
-	"../img/wood.jpg",
-	"../img/rock.jpg",
-	"../img/plastic.jpg",
-	"../img/metal.jpg",
-	"../img/fabric.jpg"
+	"img/earth.jpg",
+	"img/mars.jpg",
+	"img/wood.jpg",
+	"img/rock.jpg",
+	"img/plastic.jpg",
+	"img/metal.jpg",
+	"img/fabric.jpg"
 ]
 
 // Holds the image objects
