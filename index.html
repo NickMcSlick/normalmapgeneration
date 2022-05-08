@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+	<title>final</title>
+	<link rel="stylesheet" href="../css/main.css" type="text/css"/>
+  </head>
+  <body onload="main()"">
+	<h1>Normal Map Generation</h1>  
+	<div id="wrapper">
+	    <canvas id="diffuseCanvas"></canvas>
+		<canvas id="normalCanvas"></canvas>
+	    <script src="lib/three.min.js"></script>
+	    <script src="lib/dat.gui.min.js"></script>
+	    <script src="lib/webgl-utils.js"></script>
+	    <script src="lib/webgl-debug.js"></script>
+	    <script src="lib/cuon-utils.js"></script>
+	    <script src="lib/cuon-matrix.js"></script>
+	    <script src="js/final.js"></script>
+	</div>
+	  
+	<div id="buttonDiv">
+		<button id="downloadDiffuse" onclick="downloadDiffuse()">Download Diffuse</button>
+		<button id="downloadNormal" onclick="downloadNormal()">Download Normal</button>
+	</div>
+	<div id="linkDiv">
+		<a id="examples" href="../examples/html/hw2.html">Normal Map Examples From This Algorithm (Using HW2)</a>
+	</div>
+  </body>
+</html>
