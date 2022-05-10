@@ -127,7 +127,7 @@ let config = {
     TEXTURE_MAP: true,
 }
 
-let url_prefix = "https://www.cs.umsl.edu/~kang/htdocs/models/";
+let url_prefix = "https://bwpd58.github.io/final/examples/obj/";
 
 let url = url_prefix + "sphere.obj";
 //let url = url_prefix + "crate2.obj";
