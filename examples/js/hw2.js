@@ -1052,7 +1052,7 @@ MTL.prototype.parse_mtl_file = function(file_string) {
             /***** MAJOR EDITS *****/
             // Get normal data from texture pair array      
             for (let i = 0; i < texPair.length; i++) {
-                url = "./images/" + texPair[i].normal;
+                url = "../images/" + texPair[i].normal;
                 console.log(url);
                 load_texture_image(url);
             }
